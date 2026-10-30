@@ -66,7 +66,7 @@ public static class VenueSceneBuilder
         Lighting();
         Probes();
         PostProcessing();
-        Camera();
+        GameplaySceneSetup.Add(_root, Camera(), Report);
 
         EditorSceneManager.SaveScene(scene, ScenePath);
         var scenes = new List<EditorBuildSettingsScene>(EditorBuildSettings.scenes);
@@ -514,7 +514,7 @@ public static class VenueSceneBuilder
         Report.AppendLine("post-processing: ACES tonemapping, bloom, colour grading, warm white balance, vignette");
     }
 
-    static void Camera()
+    static UnityEngine.Camera Camera()
     {
         // A preview camera at the hero view (the west staff doorway), at eye height.
         var camGo = new GameObject("PreviewCamera");
@@ -529,5 +529,6 @@ public static class VenueSceneBuilder
         data.renderPostProcessing = true;
         data.antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing;
         data.antialiasingQuality = AntialiasingQuality.High;
+        return cam;
     }
 }
