@@ -4,10 +4,11 @@ using UnityEngine;
 using UnityEngine.UIElements;
 
 /// <summary>
-/// What is on the battered computer: a cheap job site with one real vacancy,
-/// and the CV editor where the crew decides how much to lie. The draft lives
-/// here (not in the UI) so getting up does not lose it. Submitting stores claim
-/// ids in CrewState, which the shift reads back.
+/// What is on the battered computer: a cheap job site with two real vacancies
+/// (a call center and a wedding crew), and the CV editor where the crew decides
+/// how much to lie. The draft lives here (not in the UI) so getting up does not
+/// lose it. Submitting stores claim ids and each player's language ids in
+/// CrewState, which the shift reads back.
 /// </summary>
 public class ComputerScreen : MonoBehaviour
 {
@@ -19,8 +20,9 @@ public class ComputerScreen : MonoBehaviour
     static readonly Color Faint = new(0.45f, 0.45f, 0.48f);
     static readonly Color Alarm = new(0.75f, 0.15f, 0.12f);
 
-    static readonly string[] Titles = { "Between opportunities", "Event Professional", "Senior Hospitality Consultant" };
+    static readonly string[] Titles = { "Between opportunities", "Customer Experience Professional", "Senior Hospitality Consultant" };
     static readonly string[] Experience = { "None", "6 months (a friend's party)", "5 years", "15 years, at least" };
+    const string LanguageConsequence = "Calls in this language may be assigned or transferred to you.";
 
     /// The draft, kept between visits to the desk.
     public static class Draft
@@ -29,7 +31,11 @@ public class ComputerScreen : MonoBehaviour
         public static int Title;
         public static int Experience;
         public static readonly HashSet<string> Claims = new();
-        public static bool Truthful => Title == 0 && Experience == 0 && Claims.Count == 0;
+        /// This player's claimed languages besides English (ids).
+        public static readonly HashSet<string> Languages = new();
+        public static string Job = Jobs.CallCenter;
+        public static bool Loaded;
+        public static bool Truthful => Title == 0 && Experience == 0 && Claims.Count == 0 && Languages.Count == 0;
     }
 
     [SerializeField] Hud hud;
@@ -51,6 +57,14 @@ public class ComputerScreen : MonoBehaviour
         _window.style.display = DisplayStyle.Flex;
         if (string.IsNullOrEmpty(Draft.Name))
             Draft.Name = string.IsNullOrEmpty(CrewState.Current.cvName) ? "Your Name" : CrewState.Current.cvName;
+        if (!Draft.Loaded)
+        {
+            // Start from what the CV already says (a repeat visit), not a blank page.
+            var crew = CrewState.Current;
+            Draft.Loaded = true;
+            Draft.Claims.UnionWith(crew.claims);
+            Draft.Languages.UnionWith(crew.LanguagesOf(GameSession.OfflineActor));
+        }
         ShowListings();
     }
 
@@ -138,36 +152,53 @@ public class ComputerScreen : MonoBehaviour
     {
         ClearPage();
         Hud.Text(_content, "Today's listings", 26, Body).style.unityFontStyleAndWeight = FontStyle.Bold;
-        Hud.Text(_content, "4 jobs near you.  3 of them are not for you.", 14, Faint).style.marginBottom = 14;
+        Hud.Text(_content, "5 jobs near you.  3 of them are not for you.", 14, Faint).style.marginBottom = 14;
 
-        var crew = CrewState.Current;
-        var wedding = Listing(_content, "Wedding Crew Staff", "Grand Hotel Ballroom   ·   Tonight", true);
+        var calls = Listing(_content, Jobs.Title(Jobs.CallCenter), $"{Jobs.Place(Jobs.CallCenter)}   ·   Evening shift", true);
+        Hud.Text(calls, $"Pay: <b>${CrewState.CallCenterShiftPay} per shift</b>, plus bonuses", 16, Body);
+        Hud.Text(calls, "Duties: answer customer calls about deliveries, smart-home setup and refunds.", 16, Body);
+        Hud.Text(calls, "<color=#BF2620><b>Requires: 2+ years in customer support. A second language is a big plus.</b></color>", 16, Body).style.marginTop = 4;
+        ApplyRow(calls, Jobs.CallCenter);
+
+        var wedding = Listing(_content, Jobs.Title(Jobs.Wedding), $"{Jobs.Place(Jobs.Wedding)}   ·   Tonight", true);
         Hud.Text(wedding, $"Pay: <b>${CrewState.WeddingShiftPay} per shift</b>", 16, Body);
         Hud.Text(wedding, "Duties: dessert display, guest seating, ceremony sound.", 16, Body);
         Hud.Text(wedding, "<color=#BF2620><b>Requires: 5+ years of professional event experience.</b></color>", 16, Body).style.marginTop = 4;
-        if (crew.hired)
-            Hud.Text(wedding, "<color=#2E8B3E><b>Application accepted.</b> You start tonight.</color>", 16, Body).style.marginTop = 10;
-        else
-        {
-            var apply = Button(wedding, "Apply now", true, ShowCv);
-            apply.style.alignSelf = Align.FlexStart;
-            apply.style.marginTop = 10;
-        }
+        ApplyRow(wedding, Jobs.Wedding);
 
         Listing(_content, "Sushi Chef", "Applications closed", false);
         Listing(_content, "Locksmith", "Coming soon", false);
         Listing(_content, "Air Traffic Controller", "Position filled (thankfully)", false);
     }
 
-    void ShowCv()
+    void ApplyRow(VisualElement card, string job)
     {
+        var crew = CrewState.Current;
+        if (crew.hired && crew.Job == job)
+        {
+            Hud.Text(card, "<color=#2E8B3E><b>Application accepted.</b> You start tonight.</color>", 16, Body).style.marginTop = 10;
+            var edit = Button(card, "Update your CV", false, () => ShowCv(job));
+            edit.style.alignSelf = Align.FlexStart;
+            edit.style.marginTop = 8;
+            return;
+        }
+        var apply = Button(card, crew.hired ? "Apply for this instead" : "Apply now", true, () => ShowCv(job));
+        apply.style.alignSelf = Align.FlexStart;
+        apply.style.marginTop = 10;
+    }
+
+    void ShowCv(string job)
+    {
+        Draft.Job = job;
         ClearPage();
         var top = Row(_content);
-        var heading = Hud.Text(top, "Build your CV", 26, Body);
+        var heading = Hud.Text(top, $"Build your CV: {Jobs.Title(job)}", 26, Body);
         heading.style.unityFontStyleAndWeight = FontStyle.Bold;
         heading.style.flexGrow = 1;
         Button(top, "Back to listings", false, ShowListings);
-        Hud.Text(_content, "Wedding Crew Staff wants 5+ years of experience. Your CV, as of this morning, is empty.", 14, Faint).style.marginBottom = 12;
+        Hud.Text(_content, job == Jobs.CallCenter
+            ? "Brightline wants 2+ years of support experience, and loves a second language. Your CV, as of this morning, is empty."
+            : "Wedding Crew Staff wants 5+ years of experience. Your CV, as of this morning, is empty.", 14, Faint).style.marginBottom = 12;
 
         var columns = Row(_content);
         columns.style.alignItems = Align.FlexStart;
@@ -198,8 +229,18 @@ public class ComputerScreen : MonoBehaviour
         Choices(form, Experience, () => Draft.Experience, i => Draft.Experience = i);
 
         Caption("Skills and specialisms", form);
-        foreach (var (id, text, consequence) in Claims.All)
+        foreach (var (id, text, consequence) in Claims.For(job))
             ClaimToggle(form, id, text, consequence);
+
+        // Languages are yours alone: teammates fill in their own.
+        Caption("Languages (yours, not the crew's)", form);
+        var english = new Button { text = "☑  English (native)" };
+        StyleChoice(english, true);
+        english.SetEnabled(false);
+        english.style.alignSelf = Align.FlexStart;
+        form.Add(english);
+        foreach (var language in CallLanguage.Claimable)
+            LanguageToggle(form, language);
 
         var actions = Row(form);
         actions.style.marginTop = 16;
@@ -208,7 +249,8 @@ public class ComputerScreen : MonoBehaviour
             Draft.Title = 0;
             Draft.Experience = 0;
             Draft.Claims.Clear();
-            ShowCv();
+            Draft.Languages.Clear();
+            ShowCv(job);
         }).style.marginRight = 10;
         Button(actions, "Submit application", true, () => StartCoroutine(Submit()));
 
@@ -237,15 +279,21 @@ public class ComputerScreen : MonoBehaviour
         }
         else
         {
-            text += $"<b>Experience</b>\n{Experience[Draft.Experience]} in events and hospitality\n\n";
-            if (Draft.Claims.Count > 0)
+            text += $"<b>Experience</b>\n{Experience[Draft.Experience]} in {(Draft.Job == Jobs.CallCenter ? "customer support" : "events and hospitality")}\n\n";
+            var claims = Claims.For(Draft.Job);
+            if (System.Array.Exists(claims, c => Draft.Claims.Contains(c.id)))
             {
                 text += "<b>Specialisms</b>\n";
-                foreach (var (id, claim, _) in Claims.All)
+                foreach (var (id, claim, _) in claims)
                     if (Draft.Claims.Contains(id))
                         text += $"·  {claim}\n";
-                text += "\n<color=#BF2620>You will be expected to do all of this.</color>";
+                text += "\n";
             }
+            text += "<b>Languages</b>\nEnglish (native)";
+            foreach (var language in CallLanguage.Claimable)
+                if (Draft.Languages.Contains(language))
+                    text += $", {CallLanguage.Name(language)} (fluent)";
+            text += "\n\n<color=#BF2620>You will be expected to do all of this.</color>";
         }
         _preview.text = text;
     }
@@ -271,9 +319,11 @@ public class ComputerScreen : MonoBehaviour
         crew.cvTitle = Titles[Draft.Title];
         crew.cvExperience = Experience[Draft.Experience];
         crew.claims = new List<string>();
-        foreach (var (id, _, _) in Claims.All)
+        foreach (var (id, _, _) in Claims.For(Draft.Job))
             if (Draft.Claims.Contains(id))
                 crew.claims.Add(id);
+        crew.SetLanguages(GameSession.OfflineActor, Draft.Languages);
+        crew.job = Draft.Job;
         crew.hired = true;
         crew.Save();
         OpeningDirector.Instance?.OnHired();
@@ -289,7 +339,7 @@ public class ComputerScreen : MonoBehaviour
         Hud.Text(done, Draft.Truthful
             ? "As temporary general staff. Bring your own shoes."
             : "We were impressed by your extensive experience.", 20, Body).style.marginTop = 8;
-        Hud.Text(done, "First shift: Wedding Crew, Grand Hotel Ballroom. Tonight. Do not be late.", 16, Faint).style.marginTop = 18;
+        Hud.Text(done, $"Your shift: {Jobs.Title(Draft.Job)}, {Jobs.Place(Draft.Job)}. Tonight. Do not be late.", 16, Faint).style.marginTop = 18;
         var close = Button(done, "Log off and get ready", true, () => _desk?.StandUp());
         close.style.marginTop = 26;
     }
@@ -371,6 +421,39 @@ public class ComputerScreen : MonoBehaviour
         {
             if (!Draft.Claims.Remove(id))
                 Draft.Claims.Add(id);
+            Refresh();
+            RefreshPreview();
+        };
+        Refresh();
+        parent.Add(b);
+    }
+
+    void LanguageToggle(VisualElement parent, string language)
+    {
+        var b = new Button();
+        b.name = "language-" + language;
+        b.style.flexDirection = FlexDirection.Column;
+        b.style.alignItems = Align.FlexStart;
+        b.style.marginBottom = 4;
+        var row = Row(b);
+        var label = Hud.Text(row, "", 15, Body);
+        var native = Hud.LocalText(row, CallLanguage.NativeName(language), 15, Faint, language);
+        native.style.marginLeft = 10;
+        var note = Hud.Text(b, LanguageConsequence, 12, Alarm);
+        void Refresh()
+        {
+            bool on = Draft.Languages.Contains(language);
+            label.text = (on ? "☑  " : "☐  ") + $"{CallLanguage.Name(language)} (fluent)";
+            note.style.display = on ? DisplayStyle.Flex : DisplayStyle.None;
+            StyleChoice(b, on);
+            label.style.color = on ? Color.white : Body;
+            native.style.color = on ? Yellow : Faint;
+            note.style.color = on ? Yellow : Alarm;
+        }
+        b.clicked += () =>
+        {
+            if (!Draft.Languages.Remove(language))
+                Draft.Languages.Add(language);
             Refresh();
             RefreshPreview();
         };

@@ -516,6 +516,23 @@ public partial class Hud : MonoBehaviour
         return label;
     }
 
+    /// Text in a customer's language. Arabic needs the advanced text generator
+    /// (letter shaping) and right-to-left order; order numbers inside it stay readable.
+    public static Label LocalText(VisualElement parent, string text, int size, Color colour, string language)
+    {
+        var label = Text(parent, text, size, colour);
+        SetLanguage(label, language);
+        return label;
+    }
+
+    public static void SetLanguage(Label label, string language)
+    {
+        label.style.unityTextGenerator = TextGeneratorType.Advanced;
+        bool rtl = CallLanguage.RightToLeft(language);
+        label.languageDirection = rtl ? LanguageDirection.RTL : LanguageDirection.LTR;
+        label.style.unityTextAlign = rtl ? TextAnchor.UpperRight : TextAnchor.UpperLeft;
+    }
+
     static Label Pill(VisualElement parent, int size)
     {
         var label = Text(parent, "", size, Ink);

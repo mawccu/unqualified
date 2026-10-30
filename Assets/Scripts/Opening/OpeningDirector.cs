@@ -350,7 +350,7 @@ public class OpeningDirector : MonoBehaviour
     IEnumerator LeaveRoutine(IInteractionActor actor)
     {
         yield return OpenDoorByHand(actor);
-        session.TravelTo(GameSession.WeddingScene, 1.0f);
+        session.TravelTo(Jobs.Scene(CrewState.Current.Job), 1.0f);
     }
 
     IEnumerator Say(string speaker, string line, float seconds)
@@ -396,7 +396,8 @@ public class OpeningDirector : MonoBehaviour
                 hud.SetCard(eyebrow, "Find something that pays", "The computer is on the desk.");
                 break;
             case OpeningStage.Hired:
-                hud.SetCard(eyebrow, "Get to your first shift", "Wedding Crew, Grand Hotel Ballroom.", "Leave by the front door.", ClaimSummary(crew));
+                hud.SetCard(eyebrow, crew.shiftsCompleted == 0 ? "Get to your first shift" : "Get to work",
+                    $"{Jobs.Title(crew.Job)}, {Jobs.Place(crew.Job)}.", "Leave by the front door.", ClaimSummary(crew));
                 break;
         }
         hud.SetStatus(crew.billReceived ? crew.MoneyLine() : "");
@@ -407,9 +408,13 @@ public class OpeningDirector : MonoBehaviour
         if (crew.Truthful)
             return "Your CV: no experience. Available immediately.";
         var parts = new System.Collections.Generic.List<string>();
-        foreach (var (id, text, _) in Claims.All)
+        foreach (var (id, text, _) in Claims.For(crew.Job))
             if (crew.HasClaim(id))
                 parts.Add(text.ToLowerInvariant());
+        foreach (var language in crew.LanguagesOf(GameSession.OfflineActor))
+            parts.Add($"fluent in {CallLanguage.Name(language)}");
+        if (parts.Count == 0)
+            return "Your CV: some experience, no specialisms.";
         return "Your CV says: " + string.Join(", ", parts) + ".";
     }
 

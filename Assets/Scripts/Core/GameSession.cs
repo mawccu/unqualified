@@ -14,7 +14,9 @@ public class GameSession : MonoBehaviour
 {
     public const string ApartmentScene = "Apartment";
     public const string WeddingScene = "Wedding";
-    const string OfflineActor = "peer_1";
+    public const string CallCenterScene = "CallCenter";
+    /// The local player's id while offline (also their key in the crew's language profiles).
+    public const string OfflineActor = "peer_1";
 
     [SerializeField] WorkerLibrary workers;
     [SerializeField] Hud hud;

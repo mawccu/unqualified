@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEngine;
 
 /// <summary>
@@ -16,6 +17,7 @@ public class CrewState
     public const int StartingRent = 840;
     public const int RentDays = 7;
     public const int WeddingShiftPay = 140;
+    public const int CallCenterShiftPay = 120;
 
     public int day = 1;
     public int savings;
@@ -29,6 +31,12 @@ public class CrewState
     public string cvExperience = "";
     public List<string> claims = new();
     public int shiftsCompleted;
+    /// The job the crew was hired for (Jobs ids). Saves from before there was a
+    /// choice have it empty, which means the wedding.
+    public string job = "";
+    /// Each player's own language claims (the CV is shared, languages are not).
+    /// Older saves have none: everyone speaks English only.
+    public List<LanguageProfile> languageProfiles = new();
 
     static CrewState _current;
 
@@ -45,7 +53,41 @@ public class CrewState
     static string SavePath => Path.Combine(Application.persistentDataPath, "crew.json");
 
     public bool HasClaim(string id) => claims.Contains(id);
-    public bool Truthful => claims.Count == 0;
+    public bool Truthful => claims.Count == 0 && languageProfiles.TrueForAll(p => p.languages.Count == 0);
+    public string Job => string.IsNullOrEmpty(job) ? Jobs.Wedding : job;
+
+    /// The languages (besides English) a player claimed. Never null.
+    public List<string> LanguagesOf(string playerId)
+    {
+        languageProfiles ??= new List<LanguageProfile>();
+        var profile = languageProfiles.Find(p => p.playerId == playerId);
+        return profile != null ? profile.languages : new List<string>();
+    }
+
+    public void SetLanguages(string playerId, IEnumerable<string> languages)
+    {
+        languageProfiles ??= new List<LanguageProfile>();
+        var profile = languageProfiles.Find(p => p.playerId == playerId);
+        if (profile == null)
+        {
+            profile = new LanguageProfile { playerId = playerId };
+            languageProfiles.Add(profile);
+        }
+        profile.languages = new List<string>();
+        foreach (var id in languages)
+            if (System.Array.IndexOf(CallLanguage.Claimable, id) >= 0 && !profile.languages.Contains(id))
+                profile.languages.Add(id);
+    }
+
+    /// Reads a save, filling in anything an older version did not write.
+    public static CrewState FromJson(string json)
+    {
+        var crew = JsonUtility.FromJson<CrewState>(json) ?? new CrewState();
+        crew.claims ??= new List<string>();
+        crew.languageProfiles ??= new List<LanguageProfile>();
+        crew.job ??= "";
+        return crew;
+    }
 
     public void Save()
     {
@@ -64,7 +106,7 @@ public class CrewState
         try
         {
             if (File.Exists(SavePath))
-                return JsonUtility.FromJson<CrewState>(File.ReadAllText(SavePath)) ?? new CrewState();
+                return FromJson(File.ReadAllText(SavePath));
         }
         catch (Exception e)
         {
@@ -83,6 +125,24 @@ public class CrewState
     public string MoneyLine() => $"DAY {day}   ·   ${savings} SAVED   ·   RENT ${rentDue} DUE IN {daysLeft} DAYS";
 }
 
+[Serializable]
+public class LanguageProfile
+{
+    public string playerId = "";
+    public List<string> languages = new();
+}
+
+/// <summary>The jobs on the job site that actually have a shift behind them.</summary>
+public static class Jobs
+{
+    public const string Wedding = "wedding";
+    public const string CallCenter = "call_center";
+
+    public static string Scene(string job) => job == CallCenter ? GameSession.CallCenterScene : GameSession.WeddingScene;
+    public static string Title(string job) => job == CallCenter ? "Call Center Support Agent" : "Wedding Crew Staff";
+    public static string Place(string job) => job == CallCenter ? "Brightline Home Support, 3rd floor" : "Grand Hotel Ballroom";
+}
+
 /// <summary>
 /// The lies a CV can tell. Each one maps to something the shift actually does
 /// with it; flavour claims are marked as such.
@@ -93,14 +153,28 @@ public static class Claims
     public const string Seating = "claim_seating";
     public const string Audio = "claim_audio";
     public const string Pressure = "claim_pressure";
+    public const string Technical = "claim_technical";
+    public const string Service = "claim_service";
 
-    public static readonly (string id, string text, string consequence)[] All =
+    public static readonly (string id, string text, string consequence)[] Wedding =
     {
         (Cake, "Professional wedding cake specialist", "You will build the cake to a high standard, topper included. Bonus for a beautiful cake."),
         (Seating, "Experienced seating coordinator", "You will seat every guest yourself. Bonus if they are all happy."),
         (Audio, "Audio technician", "You will wire the sound desk and hit the ceremony music cue. Bonus for a clean cue."),
         (Pressure, "I work well under pressure", "Expect an extra rush job on top. Bonus if you get it done."),
     };
+
+    public static readonly (string id, string text, string consequence)[] CallCenter =
+    {
+        (Technical, "Technical support expert", "The hard technical calls are routed to you. Bonus for each one you fix."),
+        (Service, "Award-winning customer service", "Bonus for calm, happy customers. The supervisor listens in on you more."),
+        (Pressure, "I work well under pressure", "Expect a rush of extra calls. Bonus if you clear them."),
+    };
+
+    /// Every claim, for looking up its text.
+    public static readonly (string id, string text, string consequence)[] All = Wedding.Concat(CallCenter.Where(c => c.id != Pressure)).ToArray();
+
+    public static (string id, string text, string consequence)[] For(string job) => job == Jobs.CallCenter ? CallCenter : Wedding;
 
     /// The task each claim makes yours (TaskBoard ids).
     public static string TaskFor(string claim) => claim switch
