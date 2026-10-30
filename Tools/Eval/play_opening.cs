@@ -79,6 +79,15 @@ switch (cmd) {
     var eye = p.EyePosition; var dir = target - eye;
     p.SetLook(UnityEngine.Mathf.Atan2(dir.x, dir.z) * UnityEngine.Mathf.Rad2Deg, -UnityEngine.Mathf.Atan2(dir.y, new UnityEngine.Vector2(dir.x, dir.z).magnitude) * UnityEngine.Mathf.Rad2Deg);
     outcome = $"near {a[0]} at {stand}"; break; }
+  case "front": {
+    // Stand in front of the coordinator, facing her: "front <distance>"
+    var c = UnityEngine.Object.FindFirstObjectByType<Coordinator>();
+    var spot = c.transform.position + c.transform.forward * float.Parse(arg);
+    spot.y = 0.05f;
+    p.Teleport(spot);
+    var toHer = c.transform.position - spot;
+    p.SetLook(UnityEngine.Mathf.Atan2(toHer.x, toHer.z) * UnityEngine.Mathf.Rad2Deg, 10f);
+    outcome = "in front of her at " + spot; break; }
   case "timescale": UnityEngine.Time.timeScale = float.Parse(arg); outcome = "timescale " + arg; break;
   case "body": p.Avatar.SetShadowOnly(arg == "hide"); outcome = "body " + arg; break;
   case "type": {

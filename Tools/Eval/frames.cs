@@ -1,0 +1,1 @@
+return UnityEngine.Time.frameCount + " " + UnityEngine.Time.realtimeSinceStartup.ToString("F3") + " vsync " + UnityEngine.QualitySettings.vSyncCount + " guests " + Guest.All.Count + " screen " + UnityEngine.Screen.width + "x" + UnityEngine.Screen.height;

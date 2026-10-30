@@ -89,7 +89,10 @@ public class Suspicion : MonoBehaviour
     /// Lowers suspicion (a believable excuse, good work noticed).
     public void Ease(float amount) => Add(-amount);
 
-    void Update()
+    void Update() => Tick(Time.deltaTime);
+
+    /// One step of noticing and fading (Update calls it; tests call it directly).
+    public void Tick(float dt)
     {
         float floor = 0f;
         foreach (var incident in _incidents)
@@ -112,7 +115,7 @@ public class Suspicion : MonoBehaviour
         }
         _floor = Mathf.Min(floor, WarningAt - 1f);
         if (Value > _floor && State != Level.Exposed)
-            Value = Mathf.Max(_floor, Value - FadePerSecond * Time.deltaTime);
+            Value = Mathf.Max(_floor, Value - FadePerSecond * dt);
         UpdateState();
     }
 

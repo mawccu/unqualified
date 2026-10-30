@@ -475,7 +475,8 @@ public class WeddingShift : MonoBehaviour
 
     // The end ---------------------------------------------------------------------------------
 
-    void Payout()
+    /// Ends the shift and pays (once; later calls do nothing).
+    public void Payout()
     {
         if (_paid)
             return;
