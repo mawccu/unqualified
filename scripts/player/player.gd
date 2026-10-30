@@ -29,6 +29,7 @@ const REASON_TEXT: Dictionary = {
 	&"stale_revision": "It just changed. Try again.",
 	&"socket_taken": "Something is already there.",
 	&"socket_rejects": "That does not go there.",
+	&"socket_locked": "Put the layer below it first.",
 	&"no_target": "Nothing to use there.",
 }
 
@@ -52,6 +53,7 @@ var _spawn: Transform3D
 var _request_counter: int = 0
 var _last_prompt: String = ""
 var _previewed_socket: PlacementSocket
+var _previewed_prop: PickupProp
 var _net_pos: Vector3
 var _net_yaw: float = 0.0
 var _net_pitch: float = 0.0
@@ -308,13 +310,15 @@ func _set_prompt(text: String) -> void:
 
 
 func _set_preview(socket: PlacementSocket) -> void:
-	if socket == _previewed_socket:
+	var held: PickupProp = service.get_prop(held_prop_id) if service != null else null
+	if socket == _previewed_socket and (socket == null or _previewed_prop == held):
 		return
 	if _previewed_socket != null:
 		_previewed_socket.set_preview(false)
 	_previewed_socket = socket
+	_previewed_prop = held
 	if socket != null:
-		socket.set_preview(true)
+		socket.set_preview(true, held)
 
 
 func _apply_settings() -> void:

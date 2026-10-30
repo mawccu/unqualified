@@ -18,6 +18,10 @@ const MIRROR_SMOOTHING: float = 18.0
 @export var entity_id: StringName = &"prop"
 @export var kind: StringName = &"cake_section"
 @export var display_name: String = "Prop"
+## Half the prop's height: how far its centre sits above a surface it rests on.
+@export var half_height: float = 0.1
+## The visible shape, so a socket can show a ghost of exactly what you hold.
+@export var visual_mesh: Mesh
 
 ## Bumped on every ownership change so stale requests can be rejected.
 var revision: int = 0

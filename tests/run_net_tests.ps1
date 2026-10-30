@@ -102,6 +102,11 @@ if (Wanted "lobby4") {
         $locals = [regex]::Matches($roster, 'local=true').Count
         Check "lobby4: $n has 4 distinct slots and exactly one local player" (($slots.Count -eq 4) -and ($locals -eq 1))
     }
+    foreach ($n in "host", "A", "B", "C") {
+        $moved = 0.0
+        foreach ($line in (Lines $l $n "NPC moved=")) { if ($line -match "moved=([0-9.]+)") { $moved = [double]$Matches[1] } }
+        Check "lobby4: $n saw the coordinator walk (moved $moved m, needs 0.5 or more)" ($moved -ge 0.5)
+    }
     Assert-Quiet $l "lobby4"
 }
 
@@ -123,8 +128,8 @@ if (Wanted "disconnect") {
     Write-Host "`n== disconnect: a client leaves while holding the prop"
     $l = Run-Scenario "disconnect" 24704 @("A", "B") @{ scenario = "disconnect"; how = "leave" }
     Check "disconnect: B picked the prop up" ((Lines $l "B" "PICKUP ok=true").Count -eq 1)
-    Check "disconnect: host noticed B leave while it held the prop" ((Lines $l "host" "was holding 'cake_section_01'").Count -ge 1)
-    Check "disconnect: host shows the prop free right after" ((Lines $l "host" "prop cake_section_01 holder=''").Count -ge 1)
+    Check "disconnect: host noticed B leave while it held the prop" ((Lines $l "host" "was holding 'cake_base'").Count -ge 1)
+    Check "disconnect: host shows the prop free right after" ((Lines $l "host" "prop cake_base holder=''").Count -ge 1)
     Check "disconnect: A saw B holding it, then saw it freed" (((Lines $l "A" "SAW holder='peer_").Count -eq 1) -and ((Lines $l "A" "FREED ok=true").Count -eq 1))
     Check "disconnect: A could then pick it up" ((Lines $l "A" "PICKUP_AFTER ok=true").Count -eq 1)
     Assert-Quiet $l "disconnect"
@@ -133,7 +138,7 @@ if (Wanted "disconnect") {
 if (Wanted "disconnect_kill") {
     Write-Host "`n== disconnect_kill: a client process is killed while holding the prop"
     $l = Run-Scenario "disconnect_kill" 24705 @("A", "B") @{ scenario = "disconnect"; how = "kill" }
-    Check "disconnect_kill: host noticed B vanish while it held the prop" ((Lines $l "host" "was holding 'cake_section_01'").Count -ge 1)
+    Check "disconnect_kill: host noticed B vanish while it held the prop" ((Lines $l "host" "was holding 'cake_base'").Count -ge 1)
     Check "disconnect_kill: A saw it freed" ((Lines $l "A" "FREED ok=true").Count -eq 1)
     Check "disconnect_kill: A could then pick it up" ((Lines $l "A" "PICKUP_AFTER ok=true").Count -eq 1)
     $freed = (Lines $l "A" "FREED ok=true after=") -join ""

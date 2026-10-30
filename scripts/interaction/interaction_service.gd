@@ -24,6 +24,7 @@ const ERR_OUT_OF_RANGE: StringName = &"out_of_range"
 const ERR_STALE: StringName = &"stale_revision"
 const ERR_SOCKET_TAKEN: StringName = &"socket_taken"
 const ERR_SOCKET_REJECTS: StringName = &"socket_rejects"
+const ERR_SOCKET_LOCKED: StringName = &"socket_locked"
 
 ## False on a client: the host owns the truth, so this copy never drops or
 ## releases props by itself. It only validates, for prompts.
@@ -64,6 +65,16 @@ func get_prop(prop_id: StringName) -> PickupProp:
 
 func get_socket(socket_id: StringName) -> PlacementSocket:
 	return _sockets.get(socket_id, null)
+
+
+## Socket id to the id of the prop sitting in it. Empty sockets are left out.
+func occupancy() -> Dictionary:
+	var out: Dictionary = {}
+	for socket_id: StringName in _sockets:
+		var occupant: StringName = _sockets[socket_id].occupant_id
+		if occupant != &"":
+			out[socket_id] = occupant
+	return out
 
 
 func register_prop(prop: PickupProp) -> void:
@@ -136,6 +147,10 @@ func _validate_place(actor: Player, req: Dictionary) -> StringName:
 		return ERR_SOCKET_TAKEN
 	if not socket.accepts(held):
 		return ERR_SOCKET_REJECTS
+	if socket.requires_socket != &"":
+		var below: PlacementSocket = _sockets.get(socket.requires_socket, null)
+		if below != null and below.occupant_id == &"":
+			return ERR_SOCKET_LOCKED
 	if not _in_reach(actor, socket.global_position):
 		return ERR_OUT_OF_RANGE
 	return OK
@@ -160,7 +175,7 @@ func _apply(req: Dictionary) -> void:
 			var held: PickupProp = _props[actor.held_prop_id]
 			var socket: PlacementSocket = _sockets[req["target_id"]]
 			socket.occupant_id = held.entity_id
-			held.place_at(socket.snap_transform(), socket.entity_id)
+			held.place_at(socket.snap_transform_for(held), socket.entity_id)
 			actor.held_prop_id = &""
 		DROP:
 			var dropped: PickupProp = _props[actor.held_prop_id]

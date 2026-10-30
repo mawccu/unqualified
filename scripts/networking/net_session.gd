@@ -20,8 +20,8 @@ const DEFAULT_PORT: int = 24680
 const MAX_PLAYERS: int = 4
 const SEND_INTERVAL: float = 0.05
 const SPEED_SLACK: float = 1.5
-const ROOM_LIMIT_X: float = 5.8
-const ROOM_LIMIT_Z: float = 4.3
+
+
 const MAX_PITCH: float = 1.45
 const LOG_LIMIT: int = 300
 
@@ -209,8 +209,11 @@ func _broadcast_snapshot() -> void:
 	for actor: StringName in session.players:
 		var pose: Array = session.players[actor].sync_pose()
 		poses.append([actor, pose[0], pose[1], pose[2]])
+	var npcs: Array = []
+	var npc_pose: Array = session.coordinator.sync_pose()
+	npcs.append([session.coordinator.entity_id, npc_pose[0], npc_pose[1], npc_pose[2]])
 	for id: int in ids:
-		rpc_snapshot.rpc_id(id, props, poses)
+		rpc_snapshot.rpc_id(id, props, poses, npcs)
 
 
 ## Peers that are fully connected right now. Sending to one that is mid-disconnect logs an engine error.
@@ -286,8 +289,8 @@ func rpc_prop_state(prop_id: StringName, holder: StringName, socket: StringName,
 
 
 @rpc("authority", "call_remote", "unreliable_ordered")
-func rpc_snapshot(props: Array, poses: Array) -> void:
-	session.apply_snapshot(props, poses)
+func rpc_snapshot(props: Array, poses: Array, npcs: Array) -> void:
+	session.apply_snapshot(props, poses, npcs)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -339,7 +342,7 @@ func rpc_pose(pos: Vector3, yaw: float, pitch: float) -> void:
 	var max_step: float = Player.SPRINT_SPEED * SPEED_SLACK * elapsed
 	if step.length() > max_step:
 		pos = from + step.normalized() * max_step
-	pos.x = clampf(pos.x, -ROOM_LIMIT_X, ROOM_LIMIT_X)
-	pos.z = clampf(pos.z, -ROOM_LIMIT_Z, ROOM_LIMIT_Z)
+	pos.x = clampf(pos.x, VenueLayout.BOUNDS_MIN.x, VenueLayout.BOUNDS_MAX.x)
+	pos.z = clampf(pos.z, VenueLayout.BOUNDS_MIN.y, VenueLayout.BOUNDS_MAX.y)
 	pos.y = clampf(pos.y, -0.5, 2.0)
 	player.net_set_target(pos, yaw, clampf(pitch, -MAX_PITCH, MAX_PITCH))

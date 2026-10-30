@@ -40,7 +40,7 @@ func _run() -> void:
 	add_child(_session)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_prop = _session.service.get_prop(&"cake_section_01")
+	_prop = _session.service.get_prop(&"cake_base")
 	_session.local_result.connect(func(id: int, ok: bool, reason: StringName) -> void: _results[id] = [ok, reason])
 
 	var port: int = int(_a.get("port", "24700"))
@@ -81,10 +81,12 @@ func _lobby() -> void:
 		var other: Player = _session.players[actor]
 		parts.append("%s:slot%d:local=%s" % [actor, other.slot, other.is_local])
 	_log("ROSTER %s" % ",".join(parts))
+	var npc_start: Vector3 = _session.coordinator.position
 	# Clients leave one at a time: three peers vanishing in the same instant makes
 	# the engine log errors about sending to peers that are already gone.
 	var stagger: float = float("ABC".find(_name)) * 0.8 if not _is_host else 0.0
 	await _sleep(5.0 if _is_host else 2.5 + stagger)
+	_log("NPC moved=%.2f state=%s" % [npc_start.distance_to(_session.coordinator.position), _session.coordinator.state])
 
 
 func _contend() -> void:
@@ -158,7 +160,7 @@ func _far() -> void:
 		var r1: Array = _results.get(1, [false, &"no_answer"])
 		_log("FAR_PICKUP ok=%s reason=%s" % [r1[0], r1[1]])
 		# Teleport next to the prop and ask at once: the host has not accepted the move.
-		player.global_position = Vector3(-3.0, 0.05, 3.2)
+		player.global_position = Vector3(-0.8, 0.05, 4.4)
 		_session.submit(_pickup(2))
 		await _sleep(0.6)
 		var r2: Array = _results.get(2, [false, &"no_answer"])
@@ -187,7 +189,7 @@ func _pickup(request_id: int) -> Dictionary:
 		"request_id": request_id,
 		"actor_id": _session.player.actor_id,
 		"action": InteractionService.PICKUP,
-		"target_id": &"cake_section_01",
+		"target_id": &"cake_base",
 		"expected_revision": _prop.revision,
 	}
 
