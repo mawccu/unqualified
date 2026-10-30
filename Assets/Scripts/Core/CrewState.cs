@@ -91,13 +91,15 @@ public static class Claims
 {
     public const string Cake = "claim_cake";
     public const string Seating = "claim_seating";
-    public const string Pressure = "claim_pressure"; // flavour only for now: changes a line, no system behind it
+    public const string Audio = "claim_audio";
+    public const string Pressure = "claim_pressure";
 
     public static readonly (string id, string text, string consequence)[] All =
     {
-        (Cake, "Professional wedding cake specialist", "You will own the cake display."),
-        (Seating, "Experienced seating coordinator", "You will own the table signs and seating."),
-        (Pressure, "I work well under pressure", "Nobody will go easy on you."),
+        (Cake, "Professional wedding cake specialist", "You will build the cake to a high standard, topper included. Bonus for a beautiful cake."),
+        (Seating, "Experienced seating coordinator", "You will seat every guest yourself. Bonus if they are all happy."),
+        (Audio, "Audio technician", "You will wire the sound desk and hit the ceremony music cue. Bonus for a clean cue."),
+        (Pressure, "I work well under pressure", "Expect an extra rush job on top. Bonus if you get it done."),
     };
 
     /// The task each claim makes yours (TaskBoard ids).
@@ -105,6 +107,7 @@ public static class Claims
     {
         Cake => TaskBoard.Dessert,
         Seating => TaskBoard.Seating,
+        Audio => TaskBoard.Audio,
         _ => null,
     };
 }

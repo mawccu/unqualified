@@ -46,6 +46,7 @@ public class Coordinator : MonoBehaviour
     public WorkerAvatar Avatar { get; private set; }
     /// Something else (an inspection, a question) is directing her; the patrol waits.
     public bool Busy { get; set; }
+    public bool Greeting => _greeting;
 
     int _stop;
     float _pauseLeft;

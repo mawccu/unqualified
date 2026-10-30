@@ -11,7 +11,7 @@ using UnityEngine.UIElements;
 /// pause menu. Built in code on a UIDocument so the look lives in one place.
 /// </summary>
 [RequireComponent(typeof(UIDocument))]
-public class Hud : MonoBehaviour
+public partial class Hud : MonoBehaviour
 {
     public static readonly Color Panel = new(0.07f, 0.08f, 0.09f, 0.72f);
     public static readonly Color Ink = new(0.96f, 0.94f, 0.9f);
@@ -68,6 +68,7 @@ public class Hud : MonoBehaviour
         _overlay = new VisualElement { pickingMode = PickingMode.Ignore };
         Fill(_overlay);
         _root.Add(_overlay);
+        BuildShiftUi();
         BuildFade();
         BuildMenu();
         SetPrompt("");
@@ -78,6 +79,7 @@ public class Hud : MonoBehaviour
     {
         if (_root == null)
             return;
+        UpdateShiftUi();
         float dt = Time.unscaledDeltaTime;
         if (_toastLeft > 0f)
         {
@@ -214,6 +216,14 @@ public class Hud : MonoBehaviour
             row.Add(text);
             _cardBody.Add(row);
         }
+    }
+
+    /// One more line under the card's tasks.
+    public void AddCardLine(string richText)
+    {
+        Build();
+        var line = Text(_cardBody, richText, 13, Muted);
+        line.style.marginTop = 8;
     }
 
     /// The line at the bottom left (money and rent at home, the coordinator at work).

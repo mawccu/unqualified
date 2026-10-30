@@ -1,0 +1,1 @@
+var sp = UnityEngine.Object.FindFirstObjectByType<Spill>(); var c = GameSession.Instance.Service.GetProp("cake_base"); return (sp != null ? sp.EntityId + " at " + sp.transform.position : "no spill") + " | ruined base at " + c.transform.position;

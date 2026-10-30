@@ -42,7 +42,7 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
     public string HeldPropId { get; set; } = "";
     public Transform HoldPoint { get; private set; }
     public Vector3 EyePosition => _head.position;
-    public Vector3 DropVelocity => _velocity * 0.5f;
+    public Vector3 DropVelocity => _velocity * 0.5f + _slipBoost;
     /// Off while the pause menu is open (the session sets it).
     public bool ControlsEnabled { get; set; } = true;
     /// Off while something else drives the player (waking up, sitting at the desk).
@@ -94,11 +94,30 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
     float _approachLeft;
     float _coyote, _jumpBuffered;
     bool _airborneFromJump;
+    // Hold-to-use (cleaning, smoothing frosting): what is being worked on and how far along.
+    Interactable _holdThing;
+    PickupProp _holdRepair;
+    float _holdProgress;
+    Vector3 _slipBoost;
+    bool _warnedWobble;
+
+    /// 0..1 while holding E on something that takes time (for the HUD and captures).
+    public float HoldProgress => _holdThing != null || _holdRepair != null ? _holdProgress : 0f;
 
     /// Test and playtest hooks: drive the same movement code as the keys do.
     public Vector2? ScriptedMove;
     public bool ScriptedSprint;
+    /// The seat the player is sitting on, if any (moving or E gets them up).
+    public Seat SeatedOn { get; set; }
     public void PressJump() => _jumpBuffered = JumpBuffer;
+    /// Holds E down (true) or lets go, as the key would; PressInteract taps it.
+    public bool ScriptedInteractHeld;
+    public void PressInteract() => TryInteract();
+    public void PressUse()
+    {
+        if (!TryPlace())
+            TryUseHeld();
+    }
     public bool Grounded => _body != null && _body.isGrounded;
     public event Action Jumped, Landed;
 
@@ -214,15 +233,25 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
             sprinting = _sprint.IsPressed() || ScriptedSprint;
             if (_jump.WasPressedThisFrame())
                 _jumpBuffered = JumpBuffer;
+            UpdateHoldUse(dt);
             if (_interact.WasPressedThisFrame())
                 TryInteract();
             else if (_use.WasPressedThisFrame())
-                TryPlace();
+            {
+                if (!TryPlace())
+                    TryUseHeld();
+            }
             else if (_drop.WasPressedThisFrame())
                 TryDrop();
         }
 
         Vector2 input = CanControl ? Vector2.ClampMagnitude(ScriptedMove ?? _move.ReadValue<Vector2>(), 1f) : Vector2.zero;
+        if (SeatedOn != null)
+        {
+            if (input.sqrMagnitude > 0.1f || (CanControl && _interact.WasPressedThisFrame()))
+                SeatedOn.Stand();
+            input = Vector2.zero;
+        }
         _wantCrouch = CanControl && _crouchKey.IsPressed();
         UpdateCrouch(dt);
         var carried = HeldProp;
@@ -272,8 +301,10 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
         if (_airborneFromJump && _body.isGrounded && _velocity.y <= 0f)
         {
             _airborneFromJump = false;
+            HeldProp?.AddWobble(0.45f);
             Landed?.Invoke();
         }
+        UpdateCarryBalance();
         UpdateSteps(dt);
 
         UpdateAim();
@@ -286,6 +317,79 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
             HeldChanged?.Invoke(held);
         }
         Avatar.UpdateMotion(_body.velocity, sprinting, !string.IsNullOrEmpty(HeldPropId), dt);
+    }
+
+    /// Something wide carried too roughly first warns, then slips out of the hands.
+    void UpdateCarryBalance()
+    {
+        var held = HeldProp;
+        if (held == null || held.Category != PropCategory.Wide)
+        {
+            _warnedWobble = false;
+            return;
+        }
+        if (held.Wobble > 0.7f && !_warnedWobble)
+        {
+            _warnedWobble = true;
+            Feedback?.Invoke("Careful! Slow down.");
+        }
+        else if (held.Wobble < 0.4f)
+            _warnedWobble = false;
+        if (held.Wobble >= 0.999f)
+        {
+            Feedback?.Invoke("It's slipping!");
+            _slipBoost = Vector3.ProjectOnPlane(Camera.transform.forward, Vector3.up).normalized * 1.4f;
+            Send(MakeRequest(InteractionAction.Drop, "", -1));
+            _slipBoost = Vector3.zero;
+        }
+    }
+
+    /// Holding E on something that takes a moment: a mess to clean, frosting to smooth.
+    void UpdateHoldUse(float dt)
+    {
+        if (_holdThing == null && _holdRepair == null)
+            return;
+        bool stillAiming = _aimHasHit && (_holdThing != null
+            ? _aimHit.collider.GetComponentInParent<Interactable>() == _holdThing
+            : _aimHit.collider.GetComponentInParent<PickupProp>() == _holdRepair);
+        if (!(_interact.IsPressed() || ScriptedInteractHeld) || !stillAiming)
+        {
+            CancelHoldUse();
+            return;
+        }
+        float needed = _holdThing != null ? _holdThing.HoldSeconds : 1.6f;
+        _holdProgress = Mathf.Min(1f, _holdProgress + dt / needed);
+        if (_holdThing is Spill spill)
+            spill.ShowProgress(_holdProgress);
+        // Scrubbing: the tool works back and forth.
+        HoldPoint.localPosition += new Vector3(Mathf.Sin(Time.time * 18f) * 0.04f, 0f, Mathf.Cos(Time.time * 18f) * 0.02f);
+        if (_holdProgress >= 1f)
+        {
+            if (_holdThing != null)
+                Send(UseRequest(_holdThing));
+            else
+                Send(MakeRequest(InteractionAction.Repair, _holdRepair.EntityId, -1));
+            _holdThing = null;
+            _holdRepair = null;
+            _holdProgress = 0f;
+        }
+    }
+
+    void CancelHoldUse()
+    {
+        if (_holdThing is Spill spill && !spill.Clean)
+            spill.ShowProgress(0f);
+        _holdThing = null;
+        _holdRepair = null;
+        _holdProgress = 0f;
+    }
+
+    void TryUseHeld()
+    {
+        var held = HeldProp;
+        var tool = held != null ? held.GetComponent<HeldTool>() : null;
+        if (tool != null && tool.CanUseHeld)
+            tool.UseHeld(this);
     }
 
     /// Walking into something light (a chair, a box) nudges it, within limits;
@@ -456,6 +560,8 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
             InteractionResult.SocketLocked => "Put the layer below it first.",
             InteractionResult.Busy => "Someone is using that.",
             InteractionResult.NotNow => "Not now.",
+            InteractionResult.Misaligned => "Line it up over the spot first.",
+            InteractionResult.Buried => "Take the layer on top off first.",
             _ => "Nothing to use there.",
         });
     }
@@ -484,7 +590,9 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
             var result = _service.Validate(UseRequest(usable));
             if (result == InteractionResult.Ok)
             {
-                prompt = $"<b>E</b>  {usable.Prompt(this)}";
+                prompt = usable.HoldSeconds > 0f ? $"<b>Hold E</b>  {usable.Prompt(this)}" : $"<b>E</b>  {usable.Prompt(this)}";
+                if (_holdThing == usable && _holdProgress > 0f)
+                    prompt += $"   {_holdProgress * 100f:0}%";
                 actionable = true;
             }
             else if (result == InteractionResult.NotNow || result == InteractionResult.Busy)
@@ -500,12 +608,26 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
         }
         else if (!string.IsNullOrEmpty(HeldPropId))
         {
-            if (socket != null && _service.Validate(PlaceRequest(socket)) == InteractionResult.Ok)
+            var heldNow = HeldProp;
+            var placeResult = socket != null ? _service.Validate(PlaceRequest(socket)) : InteractionResult.NoTarget;
+            if (placeResult == InteractionResult.Ok)
             {
                 prompt = $"<b>Click</b>  Place on {socket.DisplayName}\n";
                 preview = socket;
                 actionable = true;
             }
+            else if (placeResult == InteractionResult.Misaligned)
+            {
+                prompt = "<color=#FFD966>Line it up over the spot</color>\n";
+                preview = socket;
+            }
+            else if (heldNow != null && heldNow.Kind == "spatula" && prop != null && prop.State == PickupProp.Condition.Smeared)
+            {
+                prompt = $"<b>Hold E</b>  Smooth the frosting\n";
+                actionable = true;
+            }
+            else if (heldNow != null && heldNow.GetComponent<HeldTool>() is HeldTool tool && tool.CanUseHeld)
+                prompt = $"<b>Click</b>  {tool.UsePrompt}\n";
             prompt += "<b>Q</b>  Drop";
         }
         else if (prop != null)
@@ -513,9 +635,12 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
             var result = _service.Validate(PickupRequest(prop));
             if (result == InteractionResult.Ok)
             {
-                prompt = $"<b>E</b>  Pick up {prop.DisplayName}";
+                string condition = prop.State == PickupProp.Condition.Smeared ? " (smeared)" : prop.State == PickupProp.Condition.Ruined ? " (ruined)" : "";
+                prompt = $"<b>E</b>  Pick up {prop.DisplayName}{condition}";
                 actionable = true;
             }
+            else if (result == InteractionResult.Buried)
+                prompt = "<color=#FFFFFF99>Take the layer on top off first</color>";
             else if (result == InteractionResult.OutOfRange)
                 prompt = "<color=#FFFFFF99>Get closer</color>";
         }
@@ -530,7 +655,7 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
     {
         PropCategory.Paper => new Vector3(0f, -0.2f, 0.34f),
         PropCategory.Wide => new Vector3(0f, -0.42f, 0.5f),
-        PropCategory.Furniture => new Vector3(0f, -1.5f, 0.62f),
+        PropCategory.Furniture => new Vector3(0f, -1.5f, 0.78f),
         _ => new Vector3(0.17f, -0.36f, 0.44f),
     };
 
@@ -554,6 +679,27 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
             Vector3 local = Camera.transform.InverseTransformPoint(world);
             HoldPoint.localPosition = Vector3.Lerp(HoldPoint.localPosition, local, 1f - Mathf.Exp(-18f * dt));
             return;
+        }
+        // Reaching a wide thing out over a spot that takes it: the hands carry it to
+        // where the crosshair meets that surface, as far as the arms allow. Lining
+        // it up is then a matter of aiming carefully.
+        if (held != null && held.Category == PropCategory.Wide && _aimHasHit)
+        {
+            var target = _aimHit.collider.GetComponentInParent<PlacementSocket>();
+            if (target != null && target.Accepts(held) && string.IsNullOrEmpty(target.OccupantId))
+            {
+                // The point on the crosshair's line nearest the spot, at the spot's height.
+                Vector3 eye = Camera.transform.position;
+                Vector3 dir = Camera.transform.forward;
+                Vector3 spot = target.transform.position;
+                Vector3 onRay = eye + dir * Mathf.Max(0.2f, Vector3.Dot(spot - eye, dir));
+                onRay.y = spot.y;
+                Vector3 local = Camera.transform.InverseTransformPoint(onRay);
+                // Arm's length from the chest, no further.
+                local = Vector3.ClampMagnitude(local - new Vector3(0f, -0.25f, 0f), 0.85f) + new Vector3(0f, -0.25f, 0f);
+                HoldPoint.localPosition = Vector3.Lerp(HoldPoint.localPosition, local, 1f - Mathf.Exp(-10f * dt));
+                return;
+            }
         }
         if (held != null)
         {
@@ -581,7 +727,12 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
         {
             var req = UseRequest(usable);
             var result = _service.Validate(req);
-            if (result == InteractionResult.Ok)
+            if (result == InteractionResult.Ok && usable.HoldSeconds > 0f)
+            {
+                _holdThing = usable;
+                _holdProgress = 0f;
+            }
+            else if (result == InteractionResult.Ok)
                 Send(req);
             else if (result == InteractionResult.NotNow)
             {
@@ -593,20 +744,39 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
                 ReportResult(InteractionAction.Use, result);
             return;
         }
+        var prop = _aimHit.collider.GetComponentInParent<PickupProp>();
+        // Smoothing a smeared cake with the spatula in hand.
+        var held = HeldProp;
+        if (prop != null && held != null && held.Kind == "spatula")
+        {
+            var repair = MakeRequest(InteractionAction.Repair, prop.EntityId, -1);
+            if (_service.Validate(repair) == InteractionResult.Ok)
+            {
+                _holdRepair = prop;
+                _holdProgress = 0f;
+            }
+            return;
+        }
         if (!string.IsNullOrEmpty(HeldPropId))
             return;
-        var prop = _aimHit.collider.GetComponentInParent<PickupProp>();
         if (prop != null)
             Send(PickupRequest(prop));
     }
 
-    void TryPlace()
+    bool TryPlace()
     {
         if (string.IsNullOrEmpty(HeldPropId) || !_aimHasHit)
-            return;
+            return false;
         var socket = _aimHit.collider.GetComponentInParent<PlacementSocket>();
-        if (socket != null)
-            Send(PlaceRequest(socket));
+        if (socket == null)
+            return false;
+        var req = PlaceRequest(socket);
+        var result = _service.Validate(req);
+        if (result == InteractionResult.Ok)
+            Send(req);
+        else
+            ReportResult(InteractionAction.Place, result);
+        return true;
     }
 
     void TryDrop()

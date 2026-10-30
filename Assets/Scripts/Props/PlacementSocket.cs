@@ -21,6 +21,15 @@ public class PlacementSocket : MonoBehaviour
     [SerializeField] float padRadius = 0.3f;
     [SerializeField] Material padMaterial;
     [SerializeField] Material ghostMaterial;
+    [Tooltip("0 snaps to the centre from anywhere in reach; above 0 the held thing must be lined up within this many metres, and lands where it is.")]
+    [SerializeField] float alignTolerance;
+    [Tooltip("Sits on top of whatever occupies this socket (cake tiers).")]
+    [SerializeField] PlacementSocket stackOn;
+
+    public float AlignTolerance => alignTolerance;
+    public PlacementSocket StackOn => stackOn;
+    /// The prop sitting here (set together with OccupantId by InteractionService).
+    public PickupProp OccupantProp { get; private set; }
 
     public string EntityId => entityId;
     public string DisplayName => displayName;
@@ -34,6 +43,8 @@ public class PlacementSocket : MonoBehaviour
         set
         {
             _occupant = value ?? "";
+            if (string.IsNullOrEmpty(_occupant))
+                OccupantProp = null;
             Refresh();
         }
     }
@@ -42,6 +53,67 @@ public class PlacementSocket : MonoBehaviour
     GameObject _pad;
     GameObject _ghost;
     PickupProp _ghostSource;
+
+    public void ConfigureAlignment(float tolerance, PlacementSocket below)
+    {
+        alignTolerance = tolerance;
+        stackOn = below;
+    }
+
+    public void SetOccupant(PickupProp prop)
+    {
+        OccupantProp = prop;
+        OccupantId = prop != null ? prop.EntityId : "";
+    }
+
+    /// Where a prop lands if placed now: lined-up spots keep the prop's own
+    /// horizontal offset (within the tolerance); others take the centre.
+    public Vector3 LandingFor(PickupProp prop, out float quality)
+    {
+        quality = 1f;
+        if (alignTolerance <= 0f)
+            return SnapPosition;
+        Vector3 offset = prop.Centre - transform.position;
+        offset.y = 0f;
+        float distance = offset.magnitude;
+        quality = Mathf.Clamp01(1f - distance / alignTolerance);
+        return SnapPosition + Vector3.ClampMagnitude(offset, alignTolerance);
+    }
+
+    public bool IsLinedUp(PickupProp prop)
+    {
+        if (alignTolerance <= 0f)
+            return true;
+        Vector3 offset = prop.Centre - transform.position;
+        offset.y = 0f;
+        return offset.magnitude <= alignTolerance;
+    }
+
+    void LateUpdate()
+    {
+        // Stack on what is below: follow its actual top, wherever it was placed.
+        if (stackOn != null && stackOn.OccupantProp != null)
+        {
+            var below = stackOn.OccupantProp;
+            float top = below.LocalBounds.max.y * below.transform.lossyScale.y;
+            Vector3 p = below.transform.position + below.transform.up * top;
+            transform.position = p;
+        }
+        if (_ghost != null && _ghost.activeSelf && _ghostSource != null)
+        {
+            _ghost.transform.position = LandingFor(_ghostSource, out float quality) - transform.position + transform.position;
+            _ghost.transform.position = LandingFor(_ghostSource, out quality);
+            var colour = !IsLinedUp(_ghostSource) ? new Color(1f, 0.3f, 0.25f, 0.4f)
+                : quality > 0.7f ? new Color(0.4f, 1f, 0.6f, 0.4f)
+                : quality > 0.4f ? new Color(1f, 0.85f, 0.3f, 0.4f) : new Color(1f, 0.55f, 0.25f, 0.4f);
+            _ghostBlock ??= new MaterialPropertyBlock();
+            _ghostBlock.SetColor("_BaseColor", colour);
+            foreach (var r in _ghost.GetComponentsInChildren<Renderer>())
+                r.SetPropertyBlock(_ghostBlock);
+        }
+    }
+
+    MaterialPropertyBlock _ghostBlock;
 
     public void Configure(string id, string display, string kind, string requires, float radius, Material pad, Material ghost)
     {

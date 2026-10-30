@@ -86,7 +86,7 @@ public static class TaskBoard
         {
             if (!occupancy.TryGetValue(pair.Key, out var occupant) || string.IsNullOrEmpty(occupant))
                 continue;
-            if (occupant == pair.Value)
+            if (System.Array.IndexOf(pair.Value.Split('|'), occupant) >= 0)
                 correct++;
             else
                 wrong++;

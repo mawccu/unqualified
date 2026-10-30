@@ -13,7 +13,7 @@ using UnityEngine.UIElements;
 /// coordinator, spawn points, the HUD and the session. Called by
 /// VenueSceneBuilder.Build(); numbers are the Godot VenueLayout ones.
 /// </summary>
-public static class GameplaySceneSetup
+public static partial class GameplaySceneSetup
 {
     const string ControllerPath = "Assets/Art/Characters/Worker.controller";
     const string LibraryPath = "Assets/Settings/Workers.asset";
@@ -51,17 +51,25 @@ public static class GameplaySceneSetup
 
         // Cake layers wait on the prep table; their sockets stack on the dessert stand.
         string previous = "";
+        PlacementSocket below = null;
         float[] startX = { -0.55f, 0.12f, 0.62f };
         float stackY = DessertStand.y;
         for (int i = 0; i < CakeLayers.Length; i++)
         {
             var layer = CakeLayers[i];
             MakeProp(layer.id, "cake_tier", layer.name, layer.id, G(PrepTable.x + startX[i], PrepTop + 0.003f, PrepTable.z), Yaw(0f), 2f, gameplay, PropCategory.Wide);
-            MakeSocket(CakeSockets[i], i == 0 ? "the cake stand" : "the cake", "cake_tier", previous, layer.radius,
+            var socket = MakeSocket(CakeSockets[i], i == 0 ? "the cake stand" : "the cake", "cake_tier", previous, layer.radius,
                 G(DessertStand.x, stackY, DessertStand.z), pad, ghost, gameplay);
+            // Each layer sits on the actual top of the one below; line-ups are judged (the shift sets how strictly).
+            socket.ConfigureAlignment(0.3f, below);
+            below = socket;
             previous = CakeSockets[i];
             stackY += layer.height;
         }
+        // The topper goes on the top layer.
+        var topper = MakeSocket(CakeChallenge.TopperSocket, "the top of the cake", "cake_topper", previous, 0.07f, G(DessertStand.x, stackY, DessertStand.z), pad, ghost, gameplay);
+        topper.ConfigureAlignment(0f, below);
+        MakeProp("cake_topper", "cake_topper", "the cake topper", "cake_topper", G(SignTable.x + 0.75f, PrepTop + 0.003f, SignTable.z), Yaw(0f), 0.2f, gameplay, PropCategory.Small);
 
         // Table signs wait on the sign table; each guest table has a sign spot.
         for (int i = 0; i < 3; i++)
@@ -75,6 +83,8 @@ public static class GameplaySceneSetup
         var coordinatorGo = new GameObject("Coordinator");
         coordinatorGo.transform.SetParent(gameplay, false);
         var coordinator = coordinatorGo.AddComponent<Coordinator>();
+        coordinatorGo.AddComponent<CoordinatorMind>();
+        coordinatorGo.AddComponent<CoordinatorHandoff>().SetEntityId("coordinator");
         coordinator.Configure(library);
 
         var spawns = new Transform[4];
@@ -100,7 +110,9 @@ public static class GameplaySceneSetup
         var greet = new GameObject("CoordinatorGreetSpot").transform;
         greet.SetParent(gameplay, false);
         greet.SetPositionAndRotation(new Vector3(2.0f, 0f, -4.6f), Quaternion.Euler(0f, -112f, 0f));
-        sessionGo.AddComponent<WeddingShift>().Configure(session, coordinator, greet);
+        var shift = sessionGo.AddComponent<WeddingShift>();
+        shift.Configure(session, coordinator, greet);
+        AddShiftContent(gameplay, shift, pad, ghost, report);
         report.AppendLine("gameplay: 3 cake layers + stand sockets, 3 signs + table sockets, coordinator, 4 spawns, HUD, session");
     }
 

@@ -1,1 +1,1 @@
-return typeof(OpeningDirector).Assembly.GetName().Name + " " + typeof(ApartmentSceneBuilder).Name;
+return typeof(WeddingShift).Name + " " + typeof(CoordinatorMind).Name + " " + typeof(AudioDesk).Name + " " + typeof(GameplaySceneSetup).Name;

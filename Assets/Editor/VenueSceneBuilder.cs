@@ -18,7 +18,7 @@ using UnityEngine.Rendering.Universal;
 /// things (players, props, the coordinator) are lit by a light probe grid.
 /// Run: return VenueSceneBuilder.Build();
 /// </summary>
-public static class VenueSceneBuilder
+public static partial class VenueSceneBuilder
 {
     const string ScenePath = "Assets/Scenes/Wedding.unity";
     const string ModelPath = "Assets/Art/Models/{0}.fbx";
@@ -58,6 +58,7 @@ public static class VenueSceneBuilder
         _root = new GameObject("Venue").transform;
 
         Shell();
+        Expansion();
         Stage();
         SoundArea();
         TablesAndChairs();
@@ -191,15 +192,19 @@ public static class VenueSceneBuilder
         // Walls: pack panels facing inward, colliders separate.
         var walls = Group("Walls");
         walls.SetParent(shell, false);
+        // Openings to the new rooms leave a panel out (see the Expansion part).
         for (int ix = -13; ix <= 13; ix += 2)
         {
             Place("wall_panel_2m", G(ix, 0f, NorthZ), Yaw(0f), walls);
-            Place("wall_panel_2m", G(ix, 0f, SouthZ), Yaw(180f), walls);
+            if (System.Array.IndexOf(SouthGaps, ix) < 0)
+                Place("wall_panel_2m", G(ix, 0f, SouthZ), Yaw(180f), walls);
         }
         for (int iz = -15; iz <= 7; iz += 2)
         {
-            Place("wall_panel_2m", G(-HalfWidth, 0f, iz), Yaw(90f), walls);
-            Place("wall_panel_2m", G(HalfWidth, 0f, iz), Yaw(-90f), walls);
+            if (System.Array.IndexOf(WestGaps, iz) < 0)
+                Place("wall_panel_2m", G(-HalfWidth, 0f, iz), Yaw(90f), walls);
+            if (System.Array.IndexOf(EastGaps, iz) < 0)
+                Place("wall_panel_2m", G(HalfWidth, 0f, iz), Yaw(-90f), walls);
         }
         float gap = DoorWidth * 0.5f;
         var runs = new[] { new Vector2(-HalfWidth, -DoorX - gap), new Vector2(-DoorX + gap, DoorX - gap), new Vector2(DoorX + gap, HalfWidth) };
@@ -210,9 +215,9 @@ public static class VenueSceneBuilder
             Solid("DividerCollider", new Vector3(run.y - run.x, WallHeight, 0.3f), G((run.x + run.y) * 0.5f, WallHeight * 0.5f, DividerZ), Quaternion.identity, walls);
         }
         Solid("NorthWallCollider", new Vector3(HalfWidth * 2f + 0.6f, WallHeight, 0.3f), G(0f, WallHeight * 0.5f, NorthZ), Quaternion.identity, walls);
-        Solid("SouthWallCollider", new Vector3(HalfWidth * 2f + 0.6f, WallHeight, 0.3f), G(0f, WallHeight * 0.5f, SouthZ), Quaternion.identity, walls);
-        Solid("WestWallCollider", new Vector3(0.3f, WallHeight, SouthZ - NorthZ + 0.6f), G(-HalfWidth, WallHeight * 0.5f, (NorthZ + SouthZ) * 0.5f), Quaternion.identity, walls);
-        Solid("EastWallCollider", new Vector3(0.3f, WallHeight, SouthZ - NorthZ + 0.6f), G(HalfWidth, WallHeight * 0.5f, (NorthZ + SouthZ) * 0.5f), Quaternion.identity, walls);
+        GappedWall("SouthWallCollider", true, SouthZ, -HalfWidth - 0.3f, HalfWidth + 0.3f, SouthGaps, walls);
+        GappedWall("WestWallCollider", false, -HalfWidth, NorthZ - 0.3f, SouthZ + 0.3f, WestGaps, walls);
+        GappedWall("EastWallCollider", false, HalfWidth, NorthZ - 0.3f, SouthZ + 0.3f, EastGaps, walls);
 
         Block("Ceiling", new Vector3(HalfWidth * 2f + 0.6f, 0.2f, SouthZ - NorthZ + 0.6f), G(0f, WallHeight + 0.1f, (NorthZ + SouthZ) * 0.5f), "Plaster", false, shell)
             .GetComponent<MeshRenderer>().sharedMaterial = Paint("Ceiling paint", new Color(0.34f, 0.38f, 0.46f));
@@ -265,14 +270,13 @@ public static class VenueSceneBuilder
         var desk = Place("sound_desk", G(SoundDesk), Yaw(0f), area);
         desk.AddComponent<BoxCollider>().center = new Vector3(0f, 0.47f, 0f);
         Place("audio_mixer", G(SoundDesk + new Vector3(0f, 0.94f, 0f)), Yaw(0f), area);
-        Place("cable_red", G(SoundDesk + new Vector3(-1.1f, 0f, 0.8f)), Yaw(17f), area);
-        Place("cable_blue", G(SoundDesk + new Vector3(-0.5f, 0f, 1.1f)), Yaw(69f), area);
-        Place("cable_yellow", G(SoundDesk + new Vector3(0.3f, 0f, 1.0f)), Yaw(120f), area);
+        // The loose cables are now the audio puzzle's props (GameplaySceneSetup).
     }
 
     static void TablesAndChairs()
     {
         var tables = Group("Tables");
+        int tableIndex = 0;
         var all = new List<Vector3>(GuestTables);
         all.AddRange(DecorTables);
         int chairs = 0;
@@ -280,6 +284,12 @@ public static class VenueSceneBuilder
         {
             Vector3 centre = G(godot);
             var table = Place("guest_table", centre, 0f, tables);
+            // Guests can be seated here. The two nearest the stage have the speakers.
+            bool nearStage = godot.z <= -8.5f;
+            bool nearSpeaker = Mathf.Abs(godot.x) < 5f && godot.z <= -9f;
+            table.AddComponent<GuestTable>().Configure(tableIndex, nearSpeaker, nearStage);
+            table.GetComponent<GuestTable>().SetEntityId($"table_{tableIndex}");
+            tableIndex++;
             var col = table.AddComponent<BoxCollider>();
             col.size = new Vector3(1.35f, TableTop, 1.35f);
             col.center = new Vector3(0f, TableTop * 0.5f, 0f);
@@ -332,7 +342,7 @@ public static class VenueSceneBuilder
             col.size = new Vector3(1.8f, 0.9f, 0.75f);
             col.center = new Vector3(0f, 0.45f, 0f);
         }
-        Place("clipboard", G(SignTable + new Vector3(0.7f, 0.9f, 0f)), Yaw(23f), area);
+        // (The clipboard's old spot on the sign table now holds the cake topper.)
         for (int i = 0; i < 6; i++)
         {
             var shelf = Place("storage_shelf", G(-12.6f + i * 1.3f, 0f, SouthZ - 0.4f), Yaw(180f), area);

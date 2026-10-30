@@ -19,8 +19,8 @@ public class FirstPersonArms : MonoBehaviour
 {
     public enum Side { Right = 0, Left = 1 }
 
-    const float UpperLength = 0.3f;
-    const float ForeLength = 0.28f;
+    const float UpperLength = 0.32f;
+    const float ForeLength = 0.3f;
     public const float Reach = UpperLength + ForeLength - 0.005f;
     const float FingerBendSpeed = 14f;
 

@@ -16,6 +16,8 @@ using UnityEngine;
 [RequireComponent(typeof(Rigidbody))]
 public class PickupProp : MonoBehaviour
 {
+    public enum Condition { Fine, Smeared, Ruined }
+
     const float FallLimit = -10f;
     const float HeldYawSmoothing = 14f;
     const float HeldMaxLag = 23f; // degrees
@@ -43,6 +45,22 @@ public class PickupProp : MonoBehaviour
     /// The prop's own box (local space), for grips and for keeping it out of walls.
     public Bounds LocalBounds { get; private set; }
     public bool IsArriving => _blendT < 1f;
+
+    /// How it looks: a hard knock smears a cake, a fall ruins it. Only the authority changes it.
+    public Condition State { get; private set; } = Condition.Fine;
+    /// 0 calm to 1 slipping out of the hands (wide things only, while carried).
+    public float Wobble { get; private set; }
+    /// How well it was lined up when placed on a spot (1 dead centre, 0 at the edge of the tolerance).
+    public float PlacementQuality { get; set; } = 1f;
+    /// Raised once per change of State, with the new state.
+    public event Action<PickupProp, Condition> Damaged;
+    /// Raised on any hard hit (for things that listen: suspicion, sounds).
+    public event Action<PickupProp, float> HitHard;
+    Vector3 _baseScale;
+    Vector3 _smoothedHoldVelocity;
+    float _lastYawSeen;
+    /// The middle of the prop (its base is its origin), for reach checks.
+    public Vector3 Centre => transform.TransformPoint(LocalBounds.center);
 
     Rigidbody _body;
     Collider[] _colliders;
@@ -95,6 +113,29 @@ public class PickupProp : MonoBehaviour
         _audio.maxDistance = 14f;
         _audio.playOnAwake = false;
         _flutterPhase = UnityEngine.Random.value * 10f;
+        _baseScale = transform.localScale;
+    }
+
+    /// A jolt (landing from a jump, a bump): wide things wobble more.
+    public void AddWobble(float amount)
+    {
+        if (category == PropCategory.Wide && _holdTarget != null)
+            Wobble = Mathf.Clamp01(Wobble + amount);
+    }
+
+    /// Changes how it looks (authority). Never improves past Fine; repairs go Smeared -> Fine.
+    public void SetCondition(Condition state)
+    {
+        if (state == State)
+            return;
+        State = state;
+        transform.localScale = state switch
+        {
+            Condition.Smeared => Vector3.Scale(_baseScale, new Vector3(1.03f, 0.93f, 1.03f)),
+            Condition.Ruined => Vector3.Scale(_baseScale, new Vector3(1.14f, 0.7f, 1.14f)),
+            _ => _baseScale,
+        };
+        Damaged?.Invoke(this, state);
     }
 
     void LateUpdate()
@@ -141,6 +182,16 @@ public class PickupProp : MonoBehaviour
     void OnCollisionEnter(Collision collision)
     {
         float speed = collision.relativeVelocity.magnitude;
+        if (speed > 1.2f)
+            HitHard?.Invoke(this, speed);
+        // Cake takes damage from hard landings.
+        if (category == PropCategory.Wide && kind == "cake_tier")
+        {
+            if (speed > 2.2f && State != Condition.Ruined)
+                SetCondition(Condition.Ruined);
+            else if (speed > 0.9f && State == Condition.Fine)
+                SetCondition(Condition.Smeared);
+        }
         if (speed < 0.5f || Time.time - _lastImpact < 0.15f)
             return;
         _lastImpact = Time.time;
@@ -164,6 +215,8 @@ public class PickupProp : MonoBehaviour
         _lastHoldPosition = target;
         Vector3 local = Quaternion.Inverse(Quaternion.Euler(0f, yaw, 0f)) * seen;
         float sway = category == PropCategory.Wide ? 1.4f : 1f;
+        if (category == PropCategory.Wide)
+            UpdateWobble(seen, yaw, dt);
         // Moving forward leans the top back; moving sideways leans it the other way.
         var wanted = new Vector2(Mathf.Clamp(-local.z * 0.03f * sway, -0.2f, 0.2f), Mathf.Clamp(local.x * 0.04f * sway, -0.2f, 0.2f));
         _tiltVelocity += (TiltStiffness * (wanted - _tilt) - TiltDamping * _tiltVelocity) * dt;
@@ -185,7 +238,29 @@ public class PickupProp : MonoBehaviour
         }
         else
             rotation = Quaternion.Euler(_tilt.x * Mathf.Rad2Deg, _heldYaw, _tilt.y * Mathf.Rad2Deg);
+        if (Wobble > 0.05f)
+        {
+            // A visible rocking that grows with the wobble.
+            float t = Time.time;
+            rotation *= Quaternion.Euler(Mathf.Sin(t * 9f) * Wobble * 8f, 0f, Mathf.Cos(t * 7.3f) * Wobble * 8f);
+        }
         Present(new Pose(target, rotation), dt);
+    }
+
+    /// Wobble builds from sudden starts and stops, sharp turns and running, and
+    /// settles when the carrier calms down.
+    void UpdateWobble(Vector3 seenVelocity, float yaw, float dt)
+    {
+        Vector3 previous = _smoothedHoldVelocity;
+        _smoothedHoldVelocity = Vector3.Lerp(_smoothedHoldVelocity, seenVelocity, 1f - Mathf.Exp(-10f * dt));
+        Vector3 accel = (_smoothedHoldVelocity - previous) / dt;
+        accel.y = 0f;
+        float yawRate = Mathf.Abs(Mathf.DeltaAngle(_lastYawSeen, yaw)) / dt;
+        _lastYawSeen = yaw;
+        float speed = new Vector2(_smoothedHoldVelocity.x, _smoothedHoldVelocity.z).magnitude;
+        // Walking pace (4 m/s) is safe; running with it is not.
+        float target = Mathf.Clamp01(accel.magnitude / 16f + Mathf.Max(0f, yawRate - 90f) / 500f + Mathf.Max(0f, speed - 4.1f) / 0.7f);
+        Wobble = target > Wobble ? Mathf.MoveTowards(Wobble, target, dt * 0.9f) : Mathf.MoveTowards(Wobble, target, dt * 0.5f);
     }
 
     /// The floor height under a point (anything solid below it in the world layer).
@@ -234,6 +309,9 @@ public class PickupProp : MonoBehaviour
         _npcPose = null;
         _placing = false;
         _holdTarget = target;
+        Wobble = 0f;
+        _smoothedHoldVelocity = Vector3.zero;
+        _lastYawSeen = target.eulerAngles.y;
         _heldYaw = target.eulerAngles.y;
         _lastHoldPosition = target.position;
         _tilt = _tiltVelocity = Vector2.zero;
@@ -264,6 +342,7 @@ public class PickupProp : MonoBehaviour
 
     public void Release(Vector3 velocity)
     {
+        Wobble = 0f;
         _holdTarget = null;
         _npcPose = null;
         _placing = false;
@@ -278,6 +357,8 @@ public class PickupProp : MonoBehaviour
 
     public void ResetToStart()
     {
+        Wobble = 0f;
+        PlacementQuality = 1f;
         _holdTarget = null;
         _npcPose = null;
         _placing = false;

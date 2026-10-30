@@ -1,0 +1,1 @@
+var s = GameSession.Instance; PickupProp best = null; float d = 99; foreach (var p in s.Service.Props) if (p.Kind == "chair") { var dd = UnityEngine.Vector3.Distance(p.transform.position, s.Player.transform.position); if (dd < d) { d = dd; best = p; } } return best.EntityId + " " + d.ToString("F2");

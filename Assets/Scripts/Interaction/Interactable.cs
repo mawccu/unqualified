@@ -21,6 +21,9 @@ public abstract class Interactable : MonoBehaviour
     /// Applied on the authority after CanUse said Ok.
     public abstract void Use(IInteractionActor actor);
 
+    /// Above 0: the player holds E this long (with progress shown) before the use is sent.
+    public virtual float HoldSeconds => 0f;
+
     /// Shown when CanUse says NotNow. Empty means stay quiet.
     public virtual string BlockedReason(IInteractionActor actor) => "";
 

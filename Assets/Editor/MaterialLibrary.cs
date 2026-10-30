@@ -16,7 +16,7 @@ public static class MaterialLibrary
 {
     const string MaterialsFolder = "Assets/Art/Materials";
     const string TexturesFolder = "Assets/Art/Textures";
-    static readonly string[] ModelFolders = { "Assets/Art/Models", "Assets/Art/Characters", "Assets/Art/Apartment", "Assets/Art/Hands" };
+    static readonly string[] ModelFolders = { "Assets/Art/Models", "Assets/Art/Characters", "Assets/Art/Apartment", "Assets/Art/Hands", "Assets/Art/Props" };
 
     /// Material name in the pack -> texture set, tiling (models have 1 UV unit = 1 metre),
     /// metallic, and how much of the set's own smoothness to keep (a waxed floor at

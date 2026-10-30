@@ -1,0 +1,1 @@
+var s = GameSession.Instance; string o = ""; foreach (var id in new[]{"sign_1","cable_music","cable_speakers"}) { var p = s.Service.GetProp(id); o += id + " at " + p.transform.position + " centre " + p.Centre + " holder " + p.HolderId + " socket " + p.SocketId + "; "; } return o;

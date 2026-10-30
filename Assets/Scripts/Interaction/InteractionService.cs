@@ -1,12 +1,16 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public enum InteractionAction { Pickup, Place, Drop, Use }
+public enum InteractionAction { Pickup, Place, Drop, Use, Repair }
 
 public enum InteractionResult
 {
     Ok, UnknownActor, NoTarget, HandsFull, NothingHeld, AlreadyHeld,
     OutOfRange, StaleRevision, SocketTaken, SocketRejects, SocketLocked,
+    /// Not lined up over the spot (for spots that need care).
+    Misaligned,
+    /// Something is stacked on top of it.
+    Buried,
     /// Someone else is using it.
     Busy,
     /// Not at this point of the story; the Interactable says why.
@@ -96,6 +100,7 @@ public sealed class InteractionService
             InteractionAction.Pickup => ValidatePickup(actor, req),
             InteractionAction.Place => ValidatePlace(actor, req),
             InteractionAction.Use => ValidateUse(actor, req),
+            InteractionAction.Repair => ValidateRepair(actor, req),
             _ => ValidateDrop(actor),
         };
     }
@@ -133,10 +138,16 @@ public sealed class InteractionService
             return InteractionResult.HandsFull;
         if (!string.IsNullOrEmpty(prop.HolderId))
             return InteractionResult.AlreadyHeld;
-        if (!InReach(actor, prop.transform.position))
+        if (!InReach(actor, prop.Centre))
             return InteractionResult.OutOfRange;
         if (req.ExpectedRevision != prop.Revision)
             return InteractionResult.StaleRevision;
+        // A tier with another on top of it stays put until the top one is lifted off.
+        var under = GetSocket(prop.SocketId);
+        if (under != null)
+            foreach (var other in _sockets.Values)
+                if (other.StackOn == under && !string.IsNullOrEmpty(other.OccupantId))
+                    return InteractionResult.Buried;
         return InteractionResult.Ok;
     }
 
@@ -159,6 +170,24 @@ public sealed class InteractionService
                 return InteractionResult.SocketLocked;
         }
         if (!InReach(actor, socket.transform.position))
+            return InteractionResult.OutOfRange;
+        if (!socket.IsLinedUp(held))
+            return InteractionResult.Misaligned;
+        return InteractionResult.Ok;
+    }
+
+    /// Fixing a smeared cake with the spatula (the hold-to-smooth finished).
+    InteractionResult ValidateRepair(IInteractionActor actor, in InteractionRequest req)
+    {
+        var tool = GetProp(actor.HeldPropId);
+        var target = GetProp(req.TargetId);
+        if (target == null)
+            return InteractionResult.NoTarget;
+        if (tool == null || tool.Kind != "spatula")
+            return InteractionResult.NothingHeld;
+        if (target.State != PickupProp.Condition.Smeared)
+            return InteractionResult.NotNow;
+        if (!InReach(actor, target.Centre))
             return InteractionResult.OutOfRange;
         return InteractionResult.Ok;
     }
@@ -196,7 +225,7 @@ public sealed class InteractionService
             return InteractionResult.SocketTaken;
         if (!socket.Accepts(held))
             return InteractionResult.SocketRejects;
-        socket.OccupantId = held.EntityId;
+        socket.SetOccupant(held);
         held.PlaceAt(socket.SnapPosition, socket.transform.rotation, socket.EntityId);
         actor.HeldPropId = "";
         return InteractionResult.Ok;
@@ -224,8 +253,21 @@ public sealed class InteractionService
             {
                 var held = _props[actor.HeldPropId];
                 var socket = _sockets[req.TargetId];
-                socket.OccupantId = held.EntityId;
-                held.PlaceAt(socket.SnapPosition, socket.transform.rotation, socket.EntityId);
+                // Lined-up spots keep where it actually is; a poor line-up leans.
+                Vector3 landing = socket.LandingFor(held, out float quality);
+                var rotation = Quaternion.Euler(0f, held.transform.eulerAngles.y, 0f);
+                if (socket.AlignTolerance > 0f && quality < 0.4f)
+                {
+                    Vector3 lean = landing - socket.SnapPosition;
+                    lean.y = 0f;
+                    if (lean.sqrMagnitude > 1e-6f)
+                        rotation = Quaternion.AngleAxis(5f, Vector3.Cross(Vector3.up, lean.normalized)) * rotation;
+                }
+                else if (socket.AlignTolerance <= 0f)
+                    rotation = socket.transform.rotation;
+                held.PlacementQuality = quality;
+                socket.SetOccupant(held);
+                held.PlaceAt(landing, rotation, socket.EntityId);
                 actor.HeldPropId = "";
                 break;
             }
@@ -237,6 +279,9 @@ public sealed class InteractionService
             }
             case InteractionAction.Use:
                 _interactables[req.TargetId].Use(actor);
+                break;
+            case InteractionAction.Repair:
+                _props[req.TargetId].SetCondition(PickupProp.Condition.Fine);
                 break;
         }
     }

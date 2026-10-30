@@ -1,0 +1,1 @@
+var s = GameSession.Instance; var sock = s.Service.GetSocket("cake_socket_middle"); var held = s.Player.HeldProp; var off = held.Centre - sock.transform.position; off.y = 0; return $"socket at {sock.transform.position} tol {sock.AlignTolerance} | held centre {held.Centre} | offset {off.magnitude:0.000} | hold local {s.Player.HoldPoint.localPosition}";

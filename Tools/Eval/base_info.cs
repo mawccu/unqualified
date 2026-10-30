@@ -1,0 +1,1 @@
+var s = GameSession.Instance; var b = s.Service.GetSocket("cake_socket_base"); var p = b.OccupantProp; return "base socket " + b.transform.position + " occupant " + (p != null ? p.EntityId + " at " + p.transform.position + " q " + p.PlacementQuality : "none");
