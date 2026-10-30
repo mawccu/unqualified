@@ -35,6 +35,7 @@ public class ComputerScreen : MonoBehaviour
     [SerializeField] Hud hud;
 
     VisualElement _window, _content;
+    ScrollView _pageScroll;
     ComputerDesk _desk;
     Label _preview;
 
@@ -74,6 +75,9 @@ public class ComputerScreen : MonoBehaviour
         var browser = new VisualElement();
         browser.style.width = 1240;
         browser.style.height = 760;
+        browser.style.maxWidth = Length.Percent(96);
+        browser.style.maxHeight = Length.Percent(94);
+        browser.style.flexShrink = 0;
         browser.style.backgroundColor = Page;
         Hud.Round(browser, 6);
         Hud.SetBorder(browser, 10, new Color(0.72f, 0.69f, 0.6f));
@@ -82,6 +86,7 @@ public class ComputerScreen : MonoBehaviour
 
         // Browser bar.
         var bar = Row(browser);
+        bar.style.flexShrink = 0;
         bar.style.backgroundColor = Chrome;
         Hud.Pad(bar, 8, 14);
         var url = Hud.Text(bar, "http://www.jobjob.biz/listings?sort=desperate", 14, Faint);
@@ -94,27 +99,44 @@ public class ComputerScreen : MonoBehaviour
 
         // Site header.
         var header = Row(browser);
+        header.style.flexShrink = 0;
         header.style.backgroundColor = Brand;
         Hud.Pad(header, 14, 26);
         var logo = Hud.Text(header, "<b>JobJob</b><color=#FFD933>.biz</color>", 34, Color.white);
         logo.style.flexGrow = 1;
         Hud.Text(header, "Jobs for everyone*", 16, Yellow);
 
-        _content = new VisualElement();
-        _content.style.flexGrow = 1;
+        _pageScroll = new ScrollView(ScrollViewMode.Vertical);
+        _pageScroll.name = "computer-page-scroll";
+        _pageScroll.style.flexGrow = 1;
+        _pageScroll.style.flexBasis = 0;
+        _pageScroll.style.minHeight = 0;
+        _pageScroll.verticalScrollerVisibility = ScrollerVisibility.Auto;
+        _pageScroll.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
+        browser.Add(_pageScroll);
+
+        _content = _pageScroll.contentContainer;
+        _content.style.flexShrink = 0;
         Hud.Pad(_content, 22, 30);
-        browser.Add(_content);
 
         var footer = Hud.Text(browser, "*not everyone.   JobJob.biz is not responsible for anything that happens at any job.", 12, Faint);
         Hud.Pad(footer, 8, 30);
         footer.style.backgroundColor = new Color(0.92f, 0.92f, 0.9f);
+        footer.style.flexShrink = 0;
+    }
+
+    void ClearPage()
+    {
+        _content.Clear();
+        _preview = null;
+        _pageScroll.scrollOffset = Vector2.zero;
     }
 
     // Pages ------------------------------------------------------------------------------
 
     void ShowListings()
     {
-        _content.Clear();
+        ClearPage();
         Hud.Text(_content, "Today's listings", 26, Body).style.unityFontStyleAndWeight = FontStyle.Bold;
         Hud.Text(_content, "4 jobs near you.  3 of them are not for you.", 14, Faint).style.marginBottom = 14;
 
@@ -139,7 +161,7 @@ public class ComputerScreen : MonoBehaviour
 
     void ShowCv()
     {
-        _content.Clear();
+        ClearPage();
         var top = Row(_content);
         var heading = Hud.Text(top, "Build your CV", 26, Body);
         heading.style.unityFontStyleAndWeight = FontStyle.Bold;
@@ -149,10 +171,13 @@ public class ComputerScreen : MonoBehaviour
 
         var columns = Row(_content);
         columns.style.alignItems = Align.FlexStart;
-        columns.style.flexGrow = 1;
+        columns.style.flexWrap = Wrap.Wrap;
+        columns.style.flexShrink = 0;
 
         var form = new VisualElement();
         form.style.width = 600;
+        form.style.maxWidth = Length.Percent(100);
+        form.style.flexShrink = 0;
         form.style.marginRight = 24;
         columns.Add(form);
 
@@ -229,7 +254,7 @@ public class ComputerScreen : MonoBehaviour
     {
         _desk?.PressEnter();
         yield return new WaitForSecondsRealtime(0.15f);
-        _content.Clear();
+        ClearPage();
         var sending = Hud.Text(_content, "Sending application", 26, Body);
         sending.style.unityFontStyleAndWeight = FontStyle.Bold;
         sending.style.marginTop = 220;
@@ -253,7 +278,7 @@ public class ComputerScreen : MonoBehaviour
         crew.Save();
         OpeningDirector.Instance?.OnHired();
 
-        _content.Clear();
+        ClearPage();
         var done = new VisualElement();
         done.style.alignSelf = Align.Center;
         done.style.alignItems = Align.Center;
