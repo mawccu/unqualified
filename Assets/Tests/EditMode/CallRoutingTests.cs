@@ -255,6 +255,26 @@ public class CallRoutingTests
     }
 
     [Test]
+    public void ACallerWhoSkippedTheMenuIsHeardThenTransferredToTheSpeaker()
+    {
+        var router = Office(out var you, out var dana, out var omar);
+        router.Ring(Kettle, CallLanguage.English);                      // you are busy with this one
+        var call = router.Ring(Speaker, CallLanguage.Spanish, languageKnown: false);
+        Assert.AreEqual(dana.Id, call.Owner, "routed as English (to the technical expert)");
+        router.Answer(call.Id, dana.Id);
+        Assert.IsTrue(call.LanguageKnown, "answering reveals the language");
+        Assert.IsFalse(call.PhraseAid, "someone on shift speaks Spanish");
+        CallConversation.Greet(call, dana.Id);
+        Assert.AreEqual(you, router.BestFor(call, dana.Id), "the Spanish speaker, even though busy");
+        Assert.AreEqual(TransferResult.Queued, router.Transfer(call.Id, dana.Id, you.Id, "speaks Spanish"));
+        var mine = router.CallOf(you.Id);
+        router.Answer(mine.Id, you.Id);
+        router.End(mine, CallOutcome.Resolved);
+        Assert.AreEqual(you.Id, call.Owner);
+        Assert.AreEqual(1, call.Transcript.Count(l => l.Key == "greet" && l.Speaker == "customer"), "what Dana heard is there for you");
+    }
+
+    [Test]
     public void OldSavesLoadWithNoLanguages()
     {
         const string old = "{\"day\":3,\"savings\":200,\"rentDue\":840,\"daysLeft\":5,\"introSeen\":true,\"billReceived\":true,\"hired\":true,\"cvName\":\"Sam\",\"claims\":[\"claim_cake\"],\"shiftsCompleted\":2}";

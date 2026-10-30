@@ -36,7 +36,7 @@ public enum TransferResult { Ok, Queued, NotYours, NotLive, UnknownWorker, Offli
 /// </summary>
 public sealed class CallRouter
 {
-    public const float RingTimeout = 14f;
+    public const float RingTimeout = 20f;
     public const float BounceWindow = 30f;
     public const int MaxTransfers = 3;
     public const float TransferCost = 0.06f;
@@ -78,9 +78,9 @@ public sealed class CallRouter
     public IEnumerable<CallCase> Waiting => _calls.Where(c => c.Live && c.Owner == "").OrderBy(c => c.RangAt);
 
     /// Somebody new calls in.
-    public CallCase Ring(CaseDefinition def, string language, bool callback = false)
+    public CallCase Ring(CaseDefinition def, string language, bool callback = false, bool languageKnown = true)
     {
-        var call = new CallCase(++_nextCall, def, language, Now) { State = CallState.Queued, Callback = callback };
+        var call = new CallCase(++_nextCall, def, language, Now) { State = CallState.Queued, Callback = callback, LanguageKnown = languageKnown };
         _calls.Add(call);
         Route();
         return call;
@@ -90,7 +90,7 @@ public sealed class CallRouter
     public List<CallWorker> Eligible(CallCase call, out bool phraseAid)
     {
         var online = _workers.Where(w => w.Online).ToList();
-        var speakers = online.Where(w => w.Speaks(call.Language)).ToList();
+        var speakers = online.Where(w => w.Speaks(call.RoutedLanguage)).ToList();
         phraseAid = speakers.Count == 0;
         var pool = phraseAid ? online : speakers;
         if (call.Def.Technical)
@@ -150,7 +150,23 @@ public sealed class CallRouter
             return false;
         call.State = CallState.Active;
         call.AnsweredAt = Now;
+        if (!call.LanguageKnown)
+        {
+            // Now someone has heard them.
+            call.LanguageKnown = true;
+            call.PhraseAid = !_workers.Any(w => w.Online && w.Speaks(call.Language));
+        }
         return true;
+    }
+
+    /// The best colleague to hand this call to (someone who claimed its language,
+    /// free first), or null if nobody on shift did.
+    public CallWorker BestFor(CallCase call, string exceptId)
+    {
+        var pool = _workers.Where(w => w.Online && w.Id != exceptId && w.Speaks(call.Language)).ToList();
+        if (call.Def.Technical && pool.Any(w => w.Technical))
+            pool = pool.Where(w => w.Technical).ToList();
+        return pool.OrderBy(w => IsFree(w) ? 0 : 1).ThenBy(w => w.LastAssignedAt).FirstOrDefault();
     }
 
     public bool SetHold(int callId, string workerId, bool on)

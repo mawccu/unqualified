@@ -67,5 +67,18 @@ public static class GameSettings
         }
     }
 
+    /// Show an English translation under customers' lines on calls. Separate from
+    /// the interface language (which is English); off by default, because the
+    /// languages on your CV are the point.
+    public static bool TranslateCalls
+    {
+        get => PlayerPrefs.GetInt("translate_calls", 0) == 1;
+        set
+        {
+            PlayerPrefs.SetInt("translate_calls", value ? 1 : 0);
+            Changed?.Invoke();
+        }
+    }
+
     public static void Save() => PlayerPrefs.Save();
 }

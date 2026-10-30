@@ -22,6 +22,25 @@ public static class Tones
 
     public static AudioClip TestTone => Get("testtone", 1.5f, t => Mathf.Sin(2f * Mathf.PI * 1000f * t) * 0.25f);
 
+    /// A desk phone ring: two short warbling bursts, then quiet (loops every 2 s).
+    public static AudioClip Ring => Get("ring", 2f, t =>
+    {
+        float burst = (t < 0.4f || (t > 0.6f && t < 1.0f)) ? 1f : 0f;
+        float warble = Mathf.Sin(2f * Mathf.PI * 20f * t) > 0f ? 1f : 0.6f;
+        return (Mathf.Sin(2f * Mathf.PI * 440f * t) + Mathf.Sin(2f * Mathf.PI * 480f * t)) * 0.16f * burst * warble;
+    });
+
+    /// A button on the phone.
+    public static AudioClip Click => Get("click", 0.08f, t => (Hash(t) * 2f - 1f) * Mathf.Exp(-t * 90f) * 0.6f);
+
+    /// A tinny voice down the line (no words: what they say is on the screen).
+    public static AudioClip Murmur => Get("murmur", 1.6f, t =>
+    {
+        float syllable = Mathf.Abs(Mathf.Sin(t * 13f + Mathf.Sin(t * 3.1f) * 2f));
+        float pitch = 210f + 60f * Mathf.Sin(t * 2.3f);
+        return Mathf.Sin(2f * Mathf.PI * pitch * t + Mathf.Sin(2f * Mathf.PI * pitch * 2f * t) * 0.6f) * syllable * 0.12f;
+    });
+
     public static AudioClip Splash => Get("splash", 0.6f, t => (Hash(t) * 2f - 1f) * Mathf.Exp(-t * 7f) * 0.4f);
 
     /// Original tunes: a stately processional, a lounge loop, a polka and a racket.

@@ -7,3 +7,4 @@ step() { echo "$*" > Tools/Eval/.step; ucmd script eval_file --file Tools/Eval/p
 status() { ucmd script eval_file --file Tools/Eval/shift_status.cs | grep -o '"result": "[^"]*"' | cut -c12-; }
 cap() { Tools/capture.sh "$1" >/dev/null; }
 waitphase() { for i in $(seq 1 ${2:-60}); do r=$(status); case "$r" in *"phase $1"*) echo "reached $1"; return;; esac; sleep 1; done; echo "timeout waiting for $1: $r"; }
+ccs() { ucmd script eval_file --file Tools/Eval/cc_status.cs | grep -o '"result": "[^"]*"' | cut -c12-; }

@@ -39,6 +39,9 @@ public sealed class CallCase
     public int Id;
     public CaseDefinition Def;
     public string Language;
+    /// False when the caller skipped the language menu: they are routed as English
+    /// until someone answers and hears them.
+    public bool LanguageKnown = true;
     public CallState State = CallState.Ringing;
     public CallOutcome Outcome = CallOutcome.Open;
     /// The worker who has the call ("" while ringing or queued for anyone).
@@ -90,6 +93,19 @@ public sealed class CallCase
     {
         if (!Notes.Contains(text))
             Notes.Add(text);
+    }
+
+    /// The language the router sends this call by.
+    public string RoutedLanguage => LanguageKnown ? Language : CallLanguage.English;
+
+    /// A transcript line in English (for translated subtitles and the phrase aid).
+    public string English(TranscriptLine line)
+    {
+        if (line.Speaker != "customer" || line.Language == CallLanguage.English)
+            return "";
+        if (Def.Lines.ContainsKey(line.Key))
+            return Def.Line(line.Key, CallLanguage.English);
+        return CommonLines.Line(line.Key, CallLanguage.English);
     }
 
     public override string ToString() => $"call {Id} ({Def.Id}, {Language}, {State}, owner '{Owner}', patience {Patience:0.00})";

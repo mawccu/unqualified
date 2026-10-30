@@ -173,7 +173,7 @@ public partial class Hud
         _clockLabel.style.display = string.IsNullOrEmpty(clock) ? DisplayStyle.None : DisplayStyle.Flex;
     }
 
-    public void SetSuspicion(float value, Suspicion.Level level, string doing)
+    public void SetSuspicion(float value, Suspicion.Level level, string doing, string who = "Coordinator")
     {
         Build();
         _suspicionBox.style.display = DisplayStyle.Flex;
@@ -185,7 +185,7 @@ public partial class Hud
             Suspicion.Level.Exposed => "EXPOSED",
             _ => "calm",
         };
-        _suspicionLabel.text = $"<color=#F2C88C>Coordinator</color>  {word}" + (string.IsNullOrEmpty(doing) ? "" : $"\n<size=12><color=#FFFFFFAA>{doing}</color></size>");
+        _suspicionLabel.text = $"<color=#F2C88C>{who}</color>  {word}" + (string.IsNullOrEmpty(doing) ? "" : $"\n<size=12><color=#FFFFFFAA>{doing}</color></size>");
         _suspicionFill.style.width = Length.Percent(Mathf.Clamp(value, 0f, 100f));
         _suspicionFill.style.backgroundColor = level switch
         {

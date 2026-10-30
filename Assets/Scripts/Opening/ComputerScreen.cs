@@ -62,6 +62,8 @@ public class ComputerScreen : MonoBehaviour
             // Start from what the CV already says (a repeat visit), not a blank page.
             var crew = CrewState.Current;
             Draft.Loaded = true;
+            Draft.Title = Mathf.Max(0, System.Array.IndexOf(Titles, crew.cvTitle));
+            Draft.Experience = Mathf.Max(0, System.Array.IndexOf(Experience, crew.cvExperience));
             Draft.Claims.UnionWith(crew.claims);
             Draft.Languages.UnionWith(crew.LanguagesOf(GameSession.OfflineActor));
         }
