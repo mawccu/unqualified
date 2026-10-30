@@ -31,9 +31,23 @@ Other:
 - Held-piece ghost: aiming at a free socket with a layer in hand shows a green ghost of that exact layer
 - All of M0 and M1: first-person movement, pick up / place / drop through one validating service, pause menu with settings, host and join from the menu (up to 4), remote players as coloured bodies, disconnect cleanup, host-owned truth
 
+## Character presentation (from the art brief)
+
+Original placeholder art built in code, no third-party assets (see `docs/assets/ASSET_REGISTER.md`):
+- **One chunky toy-like worker body** (about 1.8 m, head about a third of the height, mitten hands, big shoes, panicked eyebrows) in **four costume variants** chosen by player slot: red vest with bow tie and lanyard, blue blazer with headset and radio, yellow apron with lanyard, green beanie with utility belt and one glove
+- **First-person hands**: chunky mittens with colour-matched cuffs. They rest low, bob while moving, lag behind looking around, grip a carried prop where it really is, jab on pick up, place and drop, scrub while cleaning, and fly up on a stumble
+- **Animation**: nine authored clips (idle, walk, sprint, carry idle, carry walk, interact, clean, stumble, celebrate) in an `AnimationPlayer`, driven by an `AnimationTree` state machine. Short actions return to idle by themselves; clean loops until you move; a stumble can interrupt anything and cannot itself be interrupted. Every clip keys every joint so no limb is left frozen by the previous clip
+- **Secondary wobble**: damped springs lag the head, tie, lanyard and apron behind acceleration, and held props lag their yaw a little and tilt slightly. All presentation only
+- **Remote players** are these bodies, with walk, sprint, carry and interact derived locally on each peer from how their position changes and whether they hold something. The local player does not see their own body but it still throws a shadow
+- Wobble never touches the eye, the hold point or the position (tested: zero drift while a stumble plays). A held prop's position still follows the hold point exactly
+
+Not done here: no rigged model (the joint and clip names are ready for one), no footstep or foot-plant syncing (walk speed does not scale the clip), no facial animation, no ragdoll, no stumble trigger in the game yet (the animation and `Player.stumble()` exist but nothing causes one), and the stumble, clean and celebrate states are not sent over the network because nothing triggers them yet. Pick up and place do show on other players, derived from the held prop changing.
+
 ## Checks actually run
 
 - `godot --headless --path . --import`: no errors
+- `tests/avatar_test.tscn` (headless): 99 checks, 0 failed. Spring maths (settles, overshoots once, never exceeds its limit, survives a huge time step), four distinct costumes that all build every joint, body proportions, all nine clips (every track points at a real joint, values finite and in range, exact loop seams, stumble 0.40 s), every state transition, the wobble, and that a stumble plus a carried prop leave the eye, hold point and position untouched. It found a real bug: a stumble requested in the same frame the body changed locomotion state could be overwritten before it started; fixed
+- `tests/avatar_lineup.tscn`: real-window screenshots of the four coworkers in eight poses, first-person hands (empty, carrying, jab) and a remote player carrying a layer, all reviewed by eye. It found that the hands were first placed below the bottom of the camera view; fixed
 - `tests/task_board_test.tscn` (pure logic, no window): 20 checks, 0 failed. Empty room, partial progress, done, wrong order, swapped signs, repairing a mistake, unknown sockets, and that every placement in the catalog names a socket and prop the venue really builds
 - `tests/m0_selftest.tscn`, headless and in a real window: 46 checks, 0 failed, nothing on stderr. Interaction rules on the new venue, 20 full cycles, exactly six props with none duplicated
 - `tests/run_net_tests.ps1`: 39 checks, 0 failed, nothing on stderr. Real separate Godot processes over loopback: 4 player lobby (and each client sees the coordinator walk), two clients racing for one prop for 24 rounds, host racing a client for 24 rounds, a client leaving while holding, a client killed while holding, out-of-range and teleport rejection
@@ -51,7 +65,7 @@ Other:
 - Suspicion, witness line of sight, attention, evidence, the frosting spill, the distraction display, cleaning, the final inspection, scoring, payout and the debrief
 - Ceremony audio task and event cards
 - Solo balancing (counts and carry rules do not scale with player count yet)
-- Any final art, sound or music. Everything is simple shapes and flat colours
+- Final art, sound or music. The venue and the workers are original primitives (placeholder)
 
 ## Not checked
 

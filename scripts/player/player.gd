@@ -17,9 +17,6 @@ const HOLD_DISTANCE: float = 0.95
 const BASE_LOOK: float = 0.0022
 const MAX_PITCH: float = 1.45
 const REMOTE_SMOOTHING: float = 16.0
-const SLOT_COLORS: Array[Color] = [
-	Color(0.9, 0.35, 0.3), Color(0.3, 0.6, 0.95), Color(0.95, 0.8, 0.3), Color(0.5, 0.85, 0.45),
-]
 
 const REASON_TEXT: Dictionary = {
 	&"hands_full": "Your hands are full.",
@@ -57,6 +54,11 @@ var _previewed_prop: PickupProp
 var _net_pos: Vector3
 var _net_yaw: float = 0.0
 var _net_pitch: float = 0.0
+var _avatar: WorkerAvatar
+var _hands: FirstPersonHands
+var _look_delta: Vector2 = Vector2.ZERO
+var _last_held: StringName = &""
+var _last_position: Vector3 = Vector3.ZERO
 
 
 ## Call before add_child.
@@ -76,10 +78,18 @@ func _ready() -> void:
 	add_child(_head)
 
 	hold_point = Node3D.new()
-	hold_point.position = Vector3(0.25, -0.25, -HOLD_DISTANCE)
+	hold_point.position = Vector3(0.12, -0.25, -HOLD_DISTANCE)
 	_head.add_child(hold_point)
 
+	# Everyone has a worker body. The local player does not see theirs (first
+	# person) but it still throws a shadow on the floor.
+	_avatar = WorkerAvatar.new()
+	_avatar.name = "Avatar"
+	_avatar.setup(slot)
+	add_child(_avatar)
+
 	if is_local:
+		_avatar.set_shadow_only(true)
 		var shape := CollisionShape3D.new()
 		var capsule := CapsuleShape3D.new()
 		capsule.radius = 0.35
@@ -98,14 +108,37 @@ func _ready() -> void:
 		_ray.collide_with_areas = false
 		_camera.add_child(_ray)
 
+		_hands = FirstPersonHands.new()
+		_hands.name = "Hands"
+		_hands.setup(WorkerCostumes.for_slot(slot))
+		_camera.add_child(_hands)
+
 		Settings.changed.connect(_apply_settings)
 		_apply_settings()
 	else:
-		_build_body_visual()
+		# Other players hold a prop close to the chest, where their arms reach.
+		hold_point.position = Vector3(0.0, -0.5, -0.62)
 
 	_spawn = global_transform
 	_net_pos = global_position
 	_net_yaw = rotation.y
+	_last_position = global_position
+
+
+## A recoverable slapstick slip. Cosmetic only: it never takes control away.
+## Not sent over the network yet, because nothing triggers it yet.
+func stumble() -> void:
+	_avatar.trigger(WorkerAnimations.STUMBLE)
+	if _hands != null:
+		_hands.stumble()
+
+
+func avatar() -> WorkerAvatar:
+	return _avatar
+
+
+func hands() -> FirstPersonHands:
+	return _hands
 
 
 func eye_position() -> Vector3:
@@ -169,6 +202,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	var motion := event as InputEventMouseMotion
 	if motion != null and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var look: float = BASE_LOOK * Settings.mouse_sensitivity
+		_look_delta += motion.relative
 		rotate_y(-motion.relative.x * look)
 		_pitch = clampf(_pitch - motion.relative.y * look, -MAX_PITCH, MAX_PITCH)
 		_head.rotation.x = _pitch
@@ -186,6 +220,14 @@ func _physics_process(delta: float) -> void:
 		global_position = global_position.lerp(_net_pos, blend)
 		rotation.y = lerp_angle(rotation.y, _net_yaw, blend)
 		_head.rotation.x = lerpf(_head.rotation.x, _net_pitch, blend)
+		# Everything the body animation needs is derived here from what every
+		# peer already has: how the position changes and what is held.
+		var seen_velocity: Vector3 = (global_position - _last_position) / maxf(delta, 0.0001)
+		_last_position = global_position
+		_avatar.update_motion(seen_velocity, seen_velocity.length() > SPRINT_SPEED * 0.9, held_prop_id != &"", delta)
+		if held_prop_id != _last_held:
+			_last_held = held_prop_id
+			_avatar.trigger(WorkerAnimations.INTERACT)
 		return
 	var input := Vector2.ZERO
 	if controls_enabled:
@@ -201,6 +243,12 @@ func _physics_process(delta: float) -> void:
 		velocity.y -= GRAVITY * delta
 	move_and_slide()
 	_update_hold_distance()
+	var sprinting: bool = controls_enabled and Input.is_action_pressed(&"sprint")
+	var carrying: bool = held_prop_id != &""
+	_avatar.update_motion(velocity, sprinting, carrying, delta)
+	_hands.carry_anchor = hold_point.position
+	_hands.update_state(Vector2(velocity.x, velocity.z).length(), sprinting, carrying, _look_delta, delta)
+	_look_delta = Vector2.ZERO
 
 
 func _process(_delta: float) -> void:
@@ -208,25 +256,10 @@ func _process(_delta: float) -> void:
 		_update_aim()
 
 
-func _build_body_visual() -> void:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = SLOT_COLORS[slot % SLOT_COLORS.size()]
-	var body := MeshInstance3D.new()
-	var capsule := CapsuleMesh.new()
-	capsule.radius = 0.35
-	capsule.height = 1.7
-	capsule.material = material
-	body.mesh = capsule
-	body.position = Vector3(0.0, 0.85, 0.0)
-	add_child(body)
-	# A small block on the face so you can see which way they look.
-	var nose := MeshInstance3D.new()
-	var box := BoxMesh.new()
-	box.size = Vector3(0.18, 0.18, 0.3)
-	box.material = material
-	nose.mesh = box
-	nose.position = Vector3(0.0, 0.0, -0.35)
-	_head.add_child(nose)
+## The local body language for a deliberate pick up, place or drop.
+func _pulse_interact() -> void:
+	_avatar.trigger(WorkerAnimations.INTERACT)
+	_hands.jab()
 
 
 func _update_hold_distance() -> void:
@@ -234,7 +267,7 @@ func _update_hold_distance() -> void:
 	if _ray.is_colliding():
 		var hit_distance: float = _camera.global_position.distance_to(_ray.get_collision_point())
 		distance = clampf(hit_distance - 0.45, 0.5, HOLD_DISTANCE)
-	hold_point.position = Vector3(0.25, -0.25, -distance)
+	hold_point.position = Vector3(0.12, -0.25, -distance)
 
 
 func _update_aim() -> void:
@@ -263,6 +296,7 @@ func _interact() -> void:
 		return
 	var prop := _ray.get_collider() as PickupProp
 	if prop != null:
+		_pulse_interact()
 		_submit(_pickup_request(prop))
 
 
@@ -271,11 +305,13 @@ func _use() -> void:
 		return
 	var socket := _ray.get_collider() as PlacementSocket
 	if socket != null:
+		_pulse_interact()
 		_submit(_place_request(socket))
 
 
 func _drop() -> void:
 	if held_prop_id != &"":
+		_pulse_interact()
 		_submit(_request(InteractionService.DROP, &"", -1))
 
 

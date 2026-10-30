@@ -14,6 +14,8 @@ signal state_changed(prop: PickupProp)
 
 const FALL_LIMIT: float = -10.0
 const MIRROR_SMOOTHING: float = 18.0
+const HELD_YAW_SMOOTHING: float = 14.0
+const HELD_MAX_LAG: float = 0.4
 
 @export var entity_id: StringName = &"prop"
 @export var kind: StringName = &"cake_section"
@@ -31,6 +33,9 @@ var mirror: bool = false
 
 var _start_transform: Transform3D
 var _hold_target: Node3D
+var _held_yaw: float = 0.0
+var _held_tilt := SecondarySpring.new(110.0, 7.0, 0.25)
+var _last_hold_position: Vector3 = Vector3.ZERO
 var _snap_target: Transform3D
 var _net_target: Transform3D
 var _has_net_target: bool = false
@@ -48,9 +53,19 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	if _hold_target != null:
-		# Keep the prop level: take the holder's position and yaw, not pitch.
+		# The position follows the holder exactly, so range checks and aiming never
+		# change. Only the look lags: the yaw trails a turn by a little (never more
+		# than HELD_MAX_LAG) and the prop tilts slightly with the holder's motion.
+		var target_pos: Vector3 = _hold_target.global_position
 		var yaw: float = _hold_target.global_rotation.y
-		global_transform = Transform3D(Basis(Vector3.UP, yaw), _hold_target.global_position)
+		var lag: float = wrapf(yaw - _held_yaw, -PI, PI)
+		lag *= 1.0 - exp(-HELD_YAW_SMOOTHING * delta)
+		_held_yaw = yaw - clampf(wrapf(yaw - (_held_yaw + lag), -PI, PI), -HELD_MAX_LAG, HELD_MAX_LAG)
+		var velocity_seen: Vector3 = (target_pos - _last_hold_position) / maxf(delta, 0.0001)
+		_last_hold_position = target_pos
+		var local_velocity: Vector3 = Basis(Vector3.UP, yaw).inverse() * velocity_seen
+		var tilt: Vector3 = _held_tilt.step(Vector3(clampf(local_velocity.z * 0.03, -0.2, 0.2), 0.0, clampf(-local_velocity.x * 0.04, -0.2, 0.2)), delta)
+		global_transform = Transform3D(Basis(Vector3.UP, _held_yaw) * Basis.from_euler(tilt), target_pos)
 	elif _reset_pending:
 		global_transform = _start_transform
 		linear_velocity = Vector3.ZERO
@@ -87,6 +102,7 @@ func set_mirror(on: bool) -> void:
 
 func begin_hold(target: Node3D, holder: StringName) -> void:
 	_hold_target = target
+	_begin_follow()
 	_reset_pending = false
 	holder_id = holder
 	socket_id = &""
@@ -151,6 +167,7 @@ func apply_net_state(holder: StringName, socket: StringName, rev: int, pose: Tra
 	freeze = true
 	if holder != &"":
 		_hold_target = hold_target
+		_begin_follow()
 		collision_layer = 0
 		collision_mask = 0
 		return
@@ -171,3 +188,12 @@ func apply_net_snapshot(rev: int, pose: Transform3D) -> void:
 		return
 	_net_target = pose
 	_has_net_target = true
+
+
+## Start of a carry: no lag left over from a previous one.
+func _begin_follow() -> void:
+	if _hold_target == null:
+		return
+	_held_yaw = _hold_target.global_rotation.y
+	_last_hold_position = _hold_target.global_position
+	_held_tilt.reset()
