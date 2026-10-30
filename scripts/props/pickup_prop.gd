@@ -24,6 +24,9 @@ const HELD_MAX_LAG: float = 0.4
 @export var half_height: float = 0.1
 ## The visible shape, so a socket can show a ghost of exactly what you hold.
 @export var visual_mesh: Mesh
+## Where that mesh sits relative to the prop body (models from the asset pack
+## have their origin at the bottom, not the middle).
+var visual_transform: Transform3D = Transform3D.IDENTITY
 
 ## Bumped on every ownership change so stale requests can be rejected.
 var revision: int = 0

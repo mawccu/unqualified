@@ -201,6 +201,8 @@ func _part(parent: Node3D, mesh: PrimitiveMesh, color: Color, pos: Vector3, rot_
 
 func _capsule(radius: float, height: float) -> CapsuleMesh:
 	var m := CapsuleMesh.new()
+	m.radial_segments = 12
+	m.rings = 3
 	m.radius = radius
 	m.height = maxf(height, radius * 2.0)
 	return m
@@ -208,6 +210,8 @@ func _capsule(radius: float, height: float) -> CapsuleMesh:
 
 func _sphere(radius: float) -> SphereMesh:
 	var m := SphereMesh.new()
+	m.radial_segments = 14
+	m.rings = 7
 	m.radius = radius
 	m.height = radius * 2.0
 	return m

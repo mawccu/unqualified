@@ -31,6 +31,9 @@ func _ready() -> void:
 	add_child(service)
 
 	VenueBuilder.build(self)
+	Quality.apply(self, Settings.quality)
+	Settings.changed.connect(func() -> void: Quality.apply(self, Settings.quality))
+	_match_physics_to_display()
 	_build_cake()
 	_build_table_signs()
 	_build_coordinator()
@@ -54,6 +57,7 @@ func _ready() -> void:
 	net.connection_failed.connect(func() -> void: hud.show_toast("Could not connect."))
 	net.server_lost.connect(func() -> void: hud.show_toast("The host left."))
 	get_window().focus_exited.connect(_on_focus_lost)
+	get_window().focus_entered.connect(func() -> void: Engine.max_fps = 0)
 
 	_offline_roster()
 	_on_net_status(net.status_text())
@@ -245,7 +249,19 @@ func _set_menu(open: bool) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if open else Input.MOUSE_MODE_CAPTURED
 
 
+## The physics rate should match the screen, so movement advances evenly on a
+## fast display instead of in 60 Hz steps. Our physics is tiny, so this is cheap.
+func _match_physics_to_display() -> void:
+	var refresh: float = DisplayServer.screen_get_refresh_rate()
+	if refresh > 0.0:
+		Engine.physics_ticks_per_second = clampi(roundi(refresh), 60, 165)
+
+
 func _on_focus_lost() -> void:
+	# A window you are not looking at does not need full speed; with two
+	# windows open this halves the load on the graphics card.
+	if DisplayServer.get_name() != "headless":
+		Engine.max_fps = 30
 	if not menu_open:
 		_set_menu(true)
 
@@ -258,26 +274,13 @@ func _build_cake() -> void:
 		var layer: Dictionary = VenueLayout.CAKE_LAYERS[i]
 		var radius: float = float(layer["radius"])
 		var height: float = float(layer["height"])
-		var mesh := CylinderMesh.new()
-		mesh.top_radius = radius
-		mesh.bottom_radius = radius
-		mesh.height = height
-		mesh.material = VenueBuilder.material(layer["color"], 0.45)
+		var asset: String = str(layer["id"])
 		var start := Vector3(-0.8 + 0.8 * float(i), VenueLayout.PREP_TOP + height * 0.5 + 0.005, VenueLayout.PREP_TABLE.z)
-		var prop: PickupProp = _make_prop(StringName(layer["id"]), &"cake_tier", str(layer["name"]), mesh, height * 0.5, start)
+		var prop: PickupProp = _make_prop(StringName(layer["id"]), &"cake_tier", str(layer["name"]), asset, height * 0.5, start)
 		var shape := CylinderShape3D.new()
 		shape.radius = radius
 		shape.height = height
 		_add_prop_shape(prop, shape)
-		# A ring of piped icing around the top of each layer.
-		var ring := MeshInstance3D.new()
-		var torus := TorusMesh.new()
-		torus.inner_radius = radius - 0.025
-		torus.outer_radius = radius + 0.005
-		torus.material = VenueBuilder.material(Color(1.0, 1.0, 1.0), 0.3)
-		ring.mesh = torus
-		ring.position = Vector3(0.0, height * 0.5, 0.0)
-		prop.add_child(ring)
 
 		var socket := PlacementSocket.new()
 		socket.name = "CakeSocket%d" % i
@@ -294,17 +297,13 @@ func _build_cake() -> void:
 
 func _build_table_signs() -> void:
 	for i: int in 3:
-		var mesh := BoxMesh.new()
-		mesh.size = Vector3(0.3, 0.2, 0.04)
-		mesh.material = VenueBuilder.material(Color(0.95, 0.78, 0.3), 0.35, 0.15)
-		var start := Vector3(-5.9 + 0.4 * float(i), VenueLayout.SIGN_TABLE_TOP + 0.1 + 0.005, VenueLayout.SIGN_TABLE.z)
-		var prop: PickupProp = _make_prop(VenueLayout.SIGN_IDS[i], &"table_sign", "sign for table %d" % (i + 1), mesh, 0.1, start)
+		var asset: String = "table_sign_%d" % (i + 1)
+		var half: float = VenueLayout.SIGN_HEIGHT * 0.5
+		var start := Vector3(-6.2 + 0.7 * float(i), VenueLayout.SIGN_TABLE_TOP + half + 0.005, VenueLayout.SIGN_TABLE.z)
+		var prop: PickupProp = _make_prop(VenueLayout.SIGN_IDS[i], &"table_sign", "sign for table %d" % (i + 1), asset, half, start)
 		var shape := BoxShape3D.new()
-		shape.size = mesh.size
+		shape.size = Vector3(0.25, VenueLayout.SIGN_HEIGHT, 0.19)
 		_add_prop_shape(prop, shape)
-		for face: float in [1.0, -1.0]:
-			var text := VenueBuilder.label(prop, "TABLE %d" % (i + 1), Vector3(0.0, 0.0, 0.022 * face), 0.0 if face > 0.0 else 180.0, 40, Color(0.25, 0.08, 0.05), 0)
-			text.pixel_size = 0.0045
 
 		var socket := PlacementSocket.new()
 		socket.name = "TableSocket%d" % (i + 1)
@@ -323,19 +322,25 @@ func _build_coordinator() -> void:
 	add_child(coordinator)
 
 
-func _make_prop(id: StringName, kind: StringName, display: String, mesh: Mesh, half_height: float, start: Vector3) -> PickupProp:
+## A carryable prop shown with a model from the wedding asset pack. The model's
+## origin is at its bottom, so it is lowered by half the prop's height to sit in
+## the middle of the physics body.
+func _make_prop(id: StringName, kind: StringName, display: String, asset: String, half_height: float, start: Vector3) -> PickupProp:
 	var prop := PickupProp.new()
 	prop.name = String(id).capitalize().replace(" ", "")
 	prop.entity_id = id
 	prop.kind = kind
 	prop.display_name = display
 	prop.half_height = half_height
-	prop.visual_mesh = mesh
 	prop.collision_layer = Layers.PROP
 	prop.collision_mask = Layers.WORLD | Layers.PROP
 	prop.position = start
-	var visual := MeshInstance3D.new()
-	visual.mesh = mesh
+	var lowered := Transform3D(Basis.IDENTITY, Vector3(0.0, -half_height, 0.0))
+	var parts: Array = WeddingAssets.mesh_and_base(asset)
+	prop.visual_mesh = parts[0]
+	prop.visual_transform = lowered * (parts[1] as Transform3D)
+	var visual: Node3D = WeddingAssets.instance(asset)
+	visual.transform = lowered
 	prop.add_child(visual)
 	add_child(prop)
 	service.register_prop(prop)

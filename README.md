@@ -22,6 +22,8 @@ WASD move, mouse look, Shift sprint, E pick up, left click place on a socket, Q 
 
 ## Play with a friend or on one PC
 
+Press F3 in game to see the frame rate. If it feels slow, Esc then set Graphics quality to Low.
+
 Run the game twice (or once on each of two PCs on the same network). Press Esc. In one: Host a game. In the other: type the host's address (127.0.0.1 on the same PC) and press Join. Up to 4 players. The host can restart with F5; clients cannot.
 
 ## Test

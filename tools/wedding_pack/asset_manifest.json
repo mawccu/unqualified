@@ -1,0 +1,504 @@
+{
+  "units": "metres",
+  "source_up": "Z",
+  "gltf_up": "Y",
+  "character_front_blender": "-Y",
+  "assets": [
+    {
+      "id": "prep_table",
+      "path": "models/prep_table.glb",
+      "purpose": "Work surface; anchor sockets separately",
+      "triangles": 540,
+      "collision_hint": "box",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        1.7999999523162842,
+        0.75,
+        0.8950000405311584
+      ]
+    },
+    {
+      "id": "dessert_table",
+      "path": "models/dessert_table.glb",
+      "purpose": "Work surface; anchor sockets separately",
+      "triangles": 540,
+      "collision_hint": "box",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        2.0,
+        0.8500000238418579,
+        0.9449999928474426
+      ]
+    },
+    {
+      "id": "sound_desk",
+      "path": "models/sound_desk.glb",
+      "purpose": "Work surface; anchor sockets separately",
+      "triangles": 540,
+      "collision_hint": "box",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        1.350000023841858,
+        0.6499999761581421,
+        0.9449999928474426
+      ]
+    },
+    {
+      "id": "guest_table",
+      "path": "models/guest_table.glb",
+      "purpose": "Guest seating outcome",
+      "triangles": 276,
+      "collision_hint": "box",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        1.4600000381469727,
+        1.4600000381469727,
+        0.8250000476837158
+      ]
+    },
+    {
+      "id": "guest_chair",
+      "path": "models/guest_chair.glb",
+      "purpose": "Venue seating",
+      "triangles": 648,
+      "collision_hint": "box",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        0.4300000071525574,
+        0.4449999928474426,
+        1.0049999952316284
+      ]
+    },
+    {
+      "id": "cake_stand",
+      "path": "models/cake_stand.glb",
+      "purpose": "Cake placement target",
+      "triangles": 276,
+      "collision_hint": "convex",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        0.7799999713897705,
+        0.7799999713897705,
+        0.29250001907348633
+      ]
+    },
+    {
+      "id": "cake_base",
+      "path": "models/cake_base.glb",
+      "purpose": "Carryable independent cake layer; gameplay sets stacking order",
+      "triangles": 2872,
+      "collision_hint": "convex",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        0.656000018119812,
+        0.656000018119812,
+        0.2639999985694885
+      ]
+    },
+    {
+      "id": "cake_middle",
+      "path": "models/cake_middle.glb",
+      "purpose": "Carryable independent cake layer; gameplay sets stacking order",
+      "triangles": 2872,
+      "collision_hint": "convex",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        0.4959999918937683,
+        0.4959999918937683,
+        0.23399999737739563
+      ]
+    },
+    {
+      "id": "cake_top",
+      "path": "models/cake_top.glb",
+      "purpose": "Carryable independent cake layer; gameplay sets stacking order",
+      "triangles": 2872,
+      "collision_hint": "convex",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        0.3483999967575073,
+        0.3483999967575073,
+        0.21400000154972076
+      ]
+    },
+    {
+      "id": "cake_topper",
+      "path": "models/cake_topper.glb",
+      "purpose": "Final cake placement",
+      "triangles": 520,
+      "collision_hint": "convex",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        0.2199999988079071,
+        0.050000011920928955,
+        0.2150000035762787
+      ]
+    },
+    {
+      "id": "frosting_spill",
+      "path": "models/frosting_spill.glb",
+      "purpose": "Toggleable evidence mesh; no solid collision",
+      "triangles": 672,
+      "collision_hint": "none",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        0.5199999809265137,
+        0.30400002002716064,
+        0.02800000086426735
+      ]
+    },
+    {
+      "id": "cleaning_cloth",
+      "path": "models/cleaning_cloth.glb",
+      "purpose": "Cleaning interaction prop",
+      "triangles": 108,
+      "collision_hint": "box",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        0.2800000011920929,
+        0.20000000298023224,
+        0.03999999910593033
+      ]
+    },
+    {
+      "id": "mop_bucket",
+      "path": "models/mop_bucket.glb",
+      "purpose": "Wash-up nook",
+      "triangles": 232,
+      "collision_hint": "convex",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        0.36399999260902405,
+        0.3199999928474426,
+        0.4684852957725525
+      ]
+    },
+    {
+      "id": "mop",
+      "path": "models/mop.glb",
+      "purpose": "Cleaning tool",
+      "triangles": 200,
+      "collision_hint": "convex",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        0.3400000333786011,
+        0.17000004649162292,
+        1.2974998950958252
+      ]
+    },
+    {
+      "id": "storage_crate",
+      "path": "models/storage_crate.glb",
+      "purpose": "Moveable aisle obstruction",
+      "triangles": 1676,
+      "collision_hint": "box",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        0.6150000095367432,
+        0.44999998807907104,
+        0.46000000834465027
+      ]
+    },
+    {
+      "id": "table_sign_1",
+      "path": "models/table_sign_1.glb",
+      "purpose": "Swappable table identity",
+      "triangles": 304,
+      "collision_hint": "convex",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        0.25,
+        0.1899999976158142,
+        0.42500001192092896
+      ]
+    },
+    {
+      "id": "table_sign_2",
+      "path": "models/table_sign_2.glb",
+      "purpose": "Swappable table identity",
+      "triangles": 644,
+      "collision_hint": "convex",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        0.25,
+        0.1899999976158142,
+        0.42500001192092896
+      ]
+    },
+    {
+      "id": "table_sign_3",
+      "path": "models/table_sign_3.glb",
+      "purpose": "Swappable table identity",
+      "triangles": 876,
+      "collision_hint": "convex",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        0.25,
+        0.1899999976158142,
+        0.42500001192092896
+      ]
+    },
+    {
+      "id": "flower_centerpiece",
+      "path": "models/flower_centerpiece.glb",
+      "purpose": "Table decoration",
+      "triangles": 8968,
+      "collision_hint": "convex",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        0.3895159959793091,
+        0.3897087574005127,
+        0.46299999952316284
+      ]
+    },
+    {
+      "id": "audio_mixer",
+      "path": "models/audio_mixer.glb",
+      "purpose": "Audio puzzle control surface",
+      "triangles": 2108,
+      "collision_hint": "box",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        0.6200000047683716,
+        0.4000000059604645,
+        0.16750000417232513
+      ]
+    },
+    {
+      "id": "speaker",
+      "path": "models/speaker.glb",
+      "purpose": "Ceremony audio equipment",
+      "triangles": 628,
+      "collision_hint": "box",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        0.44999998807907104,
+        0.4150000214576721,
+        0.9800000190734863
+      ]
+    },
+    {
+      "id": "cable_red",
+      "path": "models/cable_red.glb",
+      "purpose": "Display mesh for cable item; not a simulated flexible cable",
+      "triangles": 968,
+      "collision_hint": "none",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        0.6452413201332092,
+        0.48552215099334717,
+        0.03500000014901161
+      ]
+    },
+    {
+      "id": "cable_blue",
+      "path": "models/cable_blue.glb",
+      "purpose": "Display mesh for cable item; not a simulated flexible cable",
+      "triangles": 968,
+      "collision_hint": "none",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        0.6452413201332092,
+        0.48552215099334717,
+        0.03500000014901161
+      ]
+    },
+    {
+      "id": "cable_yellow",
+      "path": "models/cable_yellow.glb",
+      "purpose": "Display mesh for cable item; not a simulated flexible cable",
+      "triangles": 968,
+      "collision_hint": "none",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        0.6452413201332092,
+        0.48552215099334717,
+        0.03500000014901161
+      ]
+    },
+    {
+      "id": "clipboard",
+      "path": "models/clipboard.glb",
+      "purpose": "Coordinator prop / service manual",
+      "triangles": 756,
+      "collision_hint": "box",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        0.23999999463558197,
+        0.054999999701976776,
+        0.3400000035762787
+      ]
+    },
+    {
+      "id": "photo_display",
+      "path": "models/photo_display.glb",
+      "purpose": "Distraction activation target",
+      "triangles": 2608,
+      "collision_hint": "convex",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        0.7799999713897705,
+        0.44999998807907104,
+        1.7549998760223389
+      ]
+    },
+    {
+      "id": "flower_arch",
+      "path": "models/flower_arch.glb",
+      "purpose": "Photo corner and ceremony framing",
+      "triangles": 4860,
+      "collision_hint": "compound",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        2.1599998474121094,
+        0.5,
+        2.5
+      ]
+    },
+    {
+      "id": "stage_platform",
+      "path": "models/stage_platform.glb",
+      "purpose": "Walkable stage",
+      "triangles": 216,
+      "collision_hint": "box",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        3.799999952316284,
+        1.8299999237060547,
+        0.30000001192092896
+      ]
+    },
+    {
+      "id": "stage_steps",
+      "path": "models/stage_steps.glb",
+      "purpose": "Attach flush to stage; use ramp collision",
+      "triangles": 324,
+      "collision_hint": "compound",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        1.0,
+        0.699999988079071,
+        0.30000001192092896
+      ]
+    },
+    {
+      "id": "floor_tile_2m",
+      "path": "models/floor_tile_2m.glb",
+      "purpose": "Modular floor at ground Z=0",
+      "triangles": 864,
+      "collision_hint": "box",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        2.0,
+        2.0,
+        0.1420000046491623
+      ]
+    },
+    {
+      "id": "wall_panel_2m",
+      "path": "models/wall_panel_2m.glb",
+      "purpose": "Solid venue wall",
+      "triangles": 324,
+      "collision_hint": "box",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        2.0,
+        0.22999998927116394,
+        3.0
+      ]
+    },
+    {
+      "id": "staff_doorway",
+      "path": "models/staff_doorway.glb",
+      "purpose": "Open 1.8m passage; use separate jamb collisions",
+      "triangles": 1424,
+      "collision_hint": "compound",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        2.4000000953674316,
+        0.2305000126361847,
+        3.0
+      ]
+    },
+    {
+      "id": "storage_shelf",
+      "path": "models/storage_shelf.glb",
+      "purpose": "Back-of-house storage",
+      "triangles": 756,
+      "collision_hint": "compound",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        1.2049999237060547,
+        0.5049999952316284,
+        1.7274999618530273
+      ]
+    },
+    {
+      "id": "worker_host",
+      "path": "models/worker_host.glb",
+      "purpose": "Static worker study; teal uniform. Requires skinning before animation",
+      "triangles": 11628,
+      "collision_hint": "capsule",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        1.2999999523162842,
+        0.6349999904632568,
+        2.3522238731384277
+      ]
+    },
+    {
+      "id": "worker_sound",
+      "path": "models/worker_sound.glb",
+      "purpose": "Static same-base costume variant; not a separate rigged character",
+      "triangles": 11936,
+      "collision_hint": "capsule",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        1.2999999523162842,
+        0.6349999904632568,
+        2.3522238731384277
+      ]
+    },
+    {
+      "id": "worker_catering",
+      "path": "models/worker_catering.glb",
+      "purpose": "Static same-base costume variant; not a separate rigged character",
+      "triangles": 11844,
+      "collision_hint": "capsule",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        1.2999999523162842,
+        0.6349999904632568,
+        2.3522238731384277
+      ]
+    },
+    {
+      "id": "worker_runner",
+      "path": "models/worker_runner.glb",
+      "purpose": "Static same-base costume variant; not a separate rigged character",
+      "triangles": 11904,
+      "collision_hint": "capsule",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        1.2999999523162842,
+        0.7300000190734863,
+        2.490000009536743
+      ]
+    },
+    {
+      "id": "coordinator",
+      "path": "models/coordinator.glb",
+      "purpose": "Static same-base costume variant; not a separate rigged character",
+      "triangles": 11844,
+      "collision_hint": "capsule",
+      "rigged": false,
+      "dimensions_blender_xyz": [
+        1.2999999523162842,
+        0.6349999904632568,
+        2.3522238731384277
+      ]
+    }
+  ],
+  "map": "wedding_venue_layout.glb",
+  "status": "Static art prototype. No rigs, animations, collisions, gameplay scripts, or navigation baked."
+}

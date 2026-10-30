@@ -4,7 +4,7 @@ extends Node
 ## Exit code 0 means every check passed. It cannot judge how the game feels.
 
 const NEAR_PROP: Vector3 = Vector3(-0.8, 0.05, 4.4)
-const NEAR_SOCKET: Vector3 = Vector3(7.5, 0.05, -0.8)
+const NEAR_SOCKET: Vector3 = Vector3(11.4, 0.05, -5.0)
 const FAR_AWAY: Vector3 = Vector3(-8.0, 0.05, -5.0)
 
 var _checks: int = 0
@@ -104,7 +104,7 @@ func _run() -> void:
 	service.reset_all()
 	for i: int in 3:
 		await get_tree().physics_frame
-	_check("reset returns the prop to its start", _prop.global_position.distance_to(Vector3(-0.8, 1.015, 3.4)) < 0.05)
+	_check("reset returns the prop to its start", _prop.global_position.distance_to(Vector3(-0.8, 1.035, 3.9)) < 0.05)
 	_check("reset clears hands and socket", _player.held_prop_id == &"" and _socket.occupant_id == &"")
 
 	# Repeat the whole cycle 20 times with no duplication
@@ -114,7 +114,7 @@ func _run() -> void:
 		for j: int in 3:
 			await get_tree().physics_frame
 		_check("cycle %d: reset puts the prop back at its start" % i,
-			_prop.global_position.distance_to(Vector3(-0.8, 1.015, 3.4)) < 0.05)
+			_prop.global_position.distance_to(Vector3(-0.8, 1.035, 3.9)) < 0.05)
 		_player.global_position = NEAR_PROP
 		cycles_ok = cycles_ok and bool(service.request(_req(&"peer_1", InteractionService.PICKUP, &"cake_base", _prop.revision))["ok"])
 		_player.global_position = NEAR_SOCKET

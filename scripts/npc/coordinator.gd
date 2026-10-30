@@ -10,15 +10,19 @@ extends Node3D
 const SPEED: float = 1.25
 const TURN_SPEED: float = 4.0
 const SMOOTHING: float = 12.0
+const MODEL_SCALE: float = 0.77
 
 ## Each stop: where to stand, how long to stay, and what to look at there.
 const ROUTE: Array[Dictionary] = [
-	{"pos": Vector3(0.0, 0.0, 0.6), "pause": 1.5, "look": Vector3(0.0, 1.5, -6.0), "state": &"checking the stage"},
-	{"pos": Vector3(3.2, 0.0, -1.4), "pause": 2.5, "look": Vector3(3.2, 1.0, -3.0), "state": &"checking the sound desk"},
-	{"pos": Vector3(6.4, 0.0, -0.8), "pause": 3.5, "look": Vector3(8.9, 1.1, -0.8), "state": &"inspecting the desserts"},
-	{"pos": Vector3(1.0, 0.0, -4.0), "pause": 1.2, "look": Vector3(-6.2, 1.0, -3.6), "state": &"watching the floor"},
-	{"pos": Vector3(-3.8, 0.0, -2.0), "pause": 3.0, "look": Vector3(-6.2, 1.0, -2.0), "state": &"checking the seating"},
-	{"pos": Vector3(-3.0, 0.0, 0.4), "pause": 1.5, "look": Vector3(-9.2, 1.4, -2.0), "state": &"admiring the photo corner"},
+	{"pos": Vector3(0.0, 0.0, -1.0), "pause": 1.5, "look": Vector3(0.0, 1.5, -14.0), "state": &"checking the stage"},
+	{"pos": Vector3(0.0, 0.0, -9.0), "pause": 2.5, "look": Vector3(7.5, 1.0, -11.2), "state": &"checking the sound desk"},
+	{"pos": Vector3(6.0, 0.0, -6.5), "pause": 0.1, "look": Vector3(10.8, 1.0, -6.6), "state": &"walking"},
+	{"pos": Vector3(10.8, 0.0, -6.6), "pause": 3.5, "look": Vector3(12.7, 1.1, -5.0), "state": &"inspecting the desserts"},
+	{"pos": Vector3(0.0, 0.0, -6.0), "pause": 1.2, "look": Vector3(-9.0, 1.0, -9.0), "state": &"watching the floor"},
+	{"pos": Vector3(-6.0, 0.0, -6.5), "pause": 3.0, "look": Vector3(-9.0, 1.0, -6.5), "state": &"checking the seating"},
+	{"pos": Vector3(-11.0, 0.0, -7.0), "pause": 2.0, "look": Vector3(-12.5, 1.4, -7.0), "state": &"admiring the photo corner"},
+	{"pos": Vector3(-6.5, 0.0, -6.0), "pause": 0.1, "look": Vector3(-5.0, 1.0, -1.0), "state": &"walking"},
+	{"pos": Vector3(-5.0, 0.0, -1.0), "pause": 0.5, "look": Vector3(0.0, 1.0, -1.0), "state": &"walking"},
 ]
 
 @export var entity_id: StringName = &"coordinator"
@@ -39,7 +43,7 @@ func _ready() -> void:
 	position = ROUTE[0]["pos"]
 	_net_pos = position
 	_build_body()
-	_label = VenueBuilder.label(self, "", Vector3(0.0, 2.35, 0.0), 0.0, 38, Color(1.0, 0.95, 0.7), 8)
+	_label = VenueBuilder.label(self, "", Vector3(0.0, 2.1, 0.0), 0.0, 38, Color(1.0, 0.95, 0.7), 8)
 	_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_label.double_sided = true
 
@@ -98,59 +102,13 @@ func _update_label() -> void:
 		_label.text = "COORDINATOR\n%s" % String(state)
 
 
+## The pack's coordinator model. It is a static mesh (no skeleton yet), so she
+## glides along her route instead of walking. The pack's models are about a third
+## bigger than the player, so she is scaled to a believable height.
 func _build_body() -> void:
-	var suit := VenueBuilder.material(Color(0.12, 0.16, 0.32), 0.7)
-	var skin := VenueBuilder.material(Color(0.93, 0.76, 0.62), 0.6)
-	var body := MeshInstance3D.new()
-	var capsule := CapsuleMesh.new()
-	capsule.radius = 0.3
-	capsule.height = 1.4
-	capsule.material = suit
-	body.mesh = capsule
-	body.position = Vector3(0.0, 0.7, 0.0)
-	add_child(body)
-	var legs := MeshInstance3D.new()
-	var leg_mesh := BoxMesh.new()
-	leg_mesh.size = Vector3(0.38, 0.45, 0.2)
-	leg_mesh.material = VenueBuilder.material(Color(0.08, 0.1, 0.2), 0.7)
-	legs.mesh = leg_mesh
-	legs.position = Vector3(0.0, 0.22, 0.0)
-	add_child(legs)
-	var head := MeshInstance3D.new()
-	var sphere := SphereMesh.new()
-	sphere.radius = 0.17
-	sphere.height = 0.34
-	sphere.material = skin
-	head.mesh = sphere
-	head.position = Vector3(0.0, 1.62, 0.0)
-	add_child(head)
-	var hair := MeshInstance3D.new()
-	var hair_mesh := SphereMesh.new()
-	hair_mesh.radius = 0.18
-	hair_mesh.height = 0.2
-	hair_mesh.material = VenueBuilder.material(Color(0.18, 0.1, 0.07), 0.9)
-	hair.mesh = hair_mesh
-	hair.position = Vector3(0.0, 1.72, 0.03)
-	add_child(hair)
-	var nose := MeshInstance3D.new()
-	var nose_mesh := BoxMesh.new()
-	nose_mesh.size = Vector3(0.05, 0.05, 0.1)
-	nose_mesh.material = skin
-	nose.mesh = nose_mesh
-	nose.position = Vector3(0.0, 1.6, -0.18)
-	add_child(nose)
-	var tie := MeshInstance3D.new()
-	var tie_mesh := BoxMesh.new()
-	tie_mesh.size = Vector3(0.07, 0.4, 0.03)
-	tie_mesh.material = VenueBuilder.material(Color(0.85, 0.1, 0.15), 0.6)
-	tie.mesh = tie_mesh
-	tie.position = Vector3(0.0, 1.15, -0.29)
-	add_child(tie)
-	var clipboard := MeshInstance3D.new()
-	var board_mesh := BoxMesh.new()
-	board_mesh.size = Vector3(0.3, 0.4, 0.03)
-	board_mesh.material = VenueBuilder.material(Color(0.95, 0.93, 0.8), 0.8)
-	clipboard.mesh = board_mesh
-	clipboard.position = Vector3(0.22, 1.05, -0.32)
-	clipboard.rotation.z = -0.2
-	add_child(clipboard)
+	var model: Node3D = WeddingAssets.instance("coordinator")
+	model.name = "Model"
+	model.scale = Vector3.ONE * MODEL_SCALE
+	# The model faces +Z; the route logic treats -Z as forward.
+	model.rotation.y = PI
+	add_child(model)

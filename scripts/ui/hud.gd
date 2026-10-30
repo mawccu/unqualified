@@ -23,6 +23,9 @@ var _address_edit: LineEdit
 var _net_row: HBoxContainer
 var _leave_button: Button
 var _toast_left: float = 0.0
+var _stats_label: Label
+var _stats_time: float = 0.0
+var _quality_picker: OptionButton
 var _task_box: VBoxContainer
 var _task_panel: PanelContainer
 var _task_signature: String = ""
@@ -47,6 +50,9 @@ func _input(event: InputEvent) -> void:
 	elif event.is_action_pressed(&"restart"):
 		restart_requested.emit()
 		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed(&"debug_overlay"):
+		_stats_label.visible = not _stats_label.visible
+		get_viewport().set_input_as_handled()
 
 
 func _process(delta: float) -> void:
@@ -54,6 +60,24 @@ func _process(delta: float) -> void:
 		_toast_left -= delta
 		if _toast_left <= 0.0:
 			_toast.text = ""
+	if _stats_label.visible:
+		_stats_time += delta
+		if _stats_time >= 0.25:
+			_stats_time = 0.0
+			_stats_label.text = _stats_text()
+
+
+## What the F3 overlay shows: enough to tell a slow game from a slow screen.
+func _stats_text() -> String:
+	return "%d fps   %.1f ms   draw calls %d   triangles %dk   physics %d Hz   graphics: %s%s" % [
+		Engine.get_frames_per_second(),
+		Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
+		int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),
+		int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME) / 1000.0),
+		Engine.physics_ticks_per_second,
+		Quality.NAMES[Settings.quality],
+		"   (window not focused, capped)" if Engine.max_fps > 0 else "",
+	]
 
 
 func set_prompt(text: String) -> void:
@@ -147,12 +171,22 @@ func _build_labels() -> void:
 	_toast.add_theme_color_override(&"font_color", Color(1.0, 0.8, 0.5))
 
 	var help := Label.new()
-	help.text = "WASD move | Mouse look | E pick up | Left click place | Q drop | Shift sprint | Esc menu | F5 restart"
+	help.text = "WASD move | Mouse look | E pick up | Left click place | Q drop | Shift sprint | Esc menu | F3 fps | F5 restart"
 	help.position = Vector2(12.0, 8.0)
 	help.add_theme_font_size_override(&"font_size", 14)
 	help.modulate = Color(1.0, 1.0, 1.0, 0.7)
 	help.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(help)
+
+	_stats_label = Label.new()
+	_stats_label.visible = false
+	_stats_label.position = Vector2(12.0, 30.0)
+	_stats_label.add_theme_font_size_override(&"font_size", 14)
+	_stats_label.add_theme_color_override(&"font_color", Color(0.6, 1.0, 0.7))
+	_stats_label.add_theme_color_override(&"font_outline_color", Color.BLACK)
+	_stats_label.add_theme_constant_override(&"outline_size", 5)
+	_stats_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_stats_label)
 
 
 func _build_task_panel() -> void:
@@ -232,6 +266,15 @@ func _build_menu() -> void:
 		func(value: float) -> void: Settings.fov = value)
 	_add_slider(box, "Mouse sensitivity", Settings.SENSITIVITY_MIN, Settings.SENSITIVITY_MAX, 0.05,
 		Settings.mouse_sensitivity, func(value: float) -> void: Settings.mouse_sensitivity = value)
+	var quality_label := Label.new()
+	quality_label.text = "Graphics quality (Low if it feels slow)"
+	box.add_child(quality_label)
+	_quality_picker = OptionButton.new()
+	for name: String in Quality.NAMES:
+		_quality_picker.add_item(name)
+	_quality_picker.select(Settings.quality)
+	_quality_picker.item_selected.connect(func(index: int) -> void: Settings.quality = index)
+	box.add_child(_quality_picker)
 
 	_status_label = Label.new()
 	_status_label.text = "Offline"

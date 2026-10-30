@@ -15,6 +15,11 @@ var fov: float = 80.0:
 		fov = clampf(value, FOV_MIN, FOV_MAX)
 		changed.emit()
 
+var quality: int = Quality.DEFAULT_LEVEL:
+	set(value):
+		quality = clampi(value, 0, Quality.NAMES.size() - 1)
+		changed.emit()
+
 var mouse_sensitivity: float = 1.0:
 	set(value):
 		mouse_sensitivity = clampf(value, SENSITIVITY_MIN, SENSITIVITY_MAX)
@@ -31,12 +36,14 @@ func load_from_disk() -> void:
 		return
 	fov = _read_number(cfg, "view", "fov", fov)
 	mouse_sensitivity = _read_number(cfg, "input", "mouse_sensitivity", mouse_sensitivity)
+	quality = int(_read_number(cfg, "view", "quality", float(quality)))
 
 
 func save() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("view", "fov", fov)
 	cfg.set_value("input", "mouse_sensitivity", mouse_sensitivity)
+	cfg.set_value("view", "quality", quality)
 	var err: Error = cfg.save(PATH)
 	if err != OK:
 		push_warning("Could not save settings (error %d)." % err)

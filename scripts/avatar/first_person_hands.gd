@@ -127,6 +127,8 @@ func _mesh(parent: Node3D, mesh: PrimitiveMesh, color: Color, pos: Vector3, scl:
 
 func _sphere(radius: float) -> SphereMesh:
 	var m := SphereMesh.new()
+	m.radial_segments = 14
+	m.rings = 7
 	m.radius = radius
 	m.height = radius * 2.0
 	return m
@@ -134,6 +136,8 @@ func _sphere(radius: float) -> SphereMesh:
 
 func _capsule(radius: float, height: float) -> CapsuleMesh:
 	var m := CapsuleMesh.new()
+	m.radial_segments = 12
+	m.rings = 3
 	m.radius = radius
 	m.height = height
 	return m
@@ -141,6 +145,8 @@ func _capsule(radius: float, height: float) -> CapsuleMesh:
 
 func _cylinder(radius: float, height: float) -> CylinderMesh:
 	var m := CylinderMesh.new()
+	m.radial_segments = 16
+	m.rings = 1
 	m.top_radius = radius
 	m.bottom_radius = radius
 	m.height = height

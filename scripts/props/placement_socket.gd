@@ -29,7 +29,9 @@ func _ready() -> void:
 	collision_layer = Layers.SOCKET
 	collision_mask = 0
 
-	if show_pad:
+	# A layer that waits for the one below it shows only the ghost when aimed at,
+	# not a pad floating in mid-air.
+	if show_pad and requires_socket == &"":
 		_pad = MeshInstance3D.new()
 		var pad_mesh := CylinderMesh.new()
 		pad_mesh.top_radius = pad_radius
@@ -80,7 +82,7 @@ func set_preview(on: bool, prop: PickupProp = null) -> void:
 		return
 	if on and prop != null and occupant_id == &"":
 		_ghost.mesh = prop.visual_mesh
-		_ghost.position = Vector3(0.0, prop.half_height + 0.006, 0.0)
+		_ghost.transform = Transform3D(Basis.IDENTITY, Vector3(0.0, prop.half_height + 0.006, 0.0)) * prop.visual_transform
 		_ghost.visible = true
 	else:
 		_ghost.visible = false

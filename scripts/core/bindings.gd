@@ -12,6 +12,7 @@ const KEYS: Dictionary = {
 	&"drop": KEY_Q,
 	&"pause": KEY_ESCAPE,
 	&"restart": KEY_F5,
+	&"debug_overlay": KEY_F3,
 }
 
 const MOUSE_BUTTONS: Dictionary = {
