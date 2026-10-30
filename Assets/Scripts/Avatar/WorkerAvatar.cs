@@ -15,6 +15,8 @@ public class WorkerAvatar : MonoBehaviour
 {
     public const string Idle = "idle", Walk = "walk", Sprint = "sprint", CarryIdle = "carry_idle", CarryWalk = "carry_walk";
     public const string Interact = "interact", Clean = "clean", Stumble = "stumble", Celebrate = "celebrate";
+    public const string Knock = "knock", Talk = "talk", Point = "point", Offer = "offer", Impatient = "impatient";
+    public const string HoldPaper = "hold_paper", SitType = "sit_type";
 
     const float MoveThreshold = 0.25f;
     const float SprintThreshold = 4.8f;
@@ -29,6 +31,7 @@ public class WorkerAvatar : MonoBehaviour
     Animator _animator;
     readonly Dictionary<string, float> _clipLengths = new();
     string _current = "";
+    string _idlePose;
     float _actionLeft;
     Vector3 _smoothedVelocity;
     readonly List<Renderer> _renderers = new();
@@ -120,7 +123,9 @@ public class WorkerAvatar : MonoBehaviour
         }
 
         string wanted = Idle;
-        if (carrying)
+        if (!moving && _idlePose != null)
+            wanted = _idlePose;
+        else if (carrying)
             wanted = moving ? CarryWalk : CarryIdle;
         else if (moving)
             wanted = sprinting && speed > SprintThreshold ? Sprint : Walk;
@@ -147,6 +152,30 @@ public class WorkerAvatar : MonoBehaviour
         Play(action, FadeAction);
         _animator.speed = 1f;
         _actionLeft = action == Clean ? float.MaxValue : _clipLengths.GetValueOrDefault(action, 0.5f);
+    }
+
+    /// What to do while standing still instead of the usual idle (reading the
+    /// bill, typing at the desk). Null goes back to normal.
+    public void SetIdlePose(string state) => _idlePose = state;
+
+    /// Plays a state directly, for performances (the landlord, the coordinator).
+    /// Callers that do this should not also call UpdateMotion that frame.
+    public void Perform(string state, float fade = FadeLocomotion)
+    {
+        if (state == _current)
+            return;
+        _animator.speed = 1f;
+        _actionLeft = 0f;
+        Play(state, fade);
+    }
+
+    /// A bone by name (e.g. "HandR"), for things held in a hand.
+    public Transform FindBone(string name)
+    {
+        foreach (var t in GetComponentsInChildren<Transform>(true))
+            if (t.name == name)
+                return t;
+        return null;
     }
 
     void Play(string state, float fade)

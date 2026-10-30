@@ -93,15 +93,22 @@ public static class GameplaySceneSetup
 
         var sessionGo = new GameObject("Session");
         sessionGo.transform.SetParent(gameplay, false);
-        sessionGo.AddComponent<GameSession>().Configure(library, hud, coordinator, spawns, previewCamera);
+        var session = sessionGo.AddComponent<GameSession>();
+        session.Configure(library, hud, spawns, previewCamera);
+
+        // The coordinator meets the crew by the prep table, then patrols.
+        var greet = new GameObject("CoordinatorGreetSpot").transform;
+        greet.SetParent(gameplay, false);
+        greet.SetPositionAndRotation(new Vector3(2.0f, 0f, -4.6f), Quaternion.Euler(0f, -112f, 0f));
+        sessionGo.AddComponent<WeddingShift>().Configure(session, coordinator, greet);
         report.AppendLine("gameplay: 3 cake layers + stand sockets, 3 signs + table sockets, coordinator, 4 spawns, HUD, session");
     }
 
     // Props and sockets -----------------------------------------------------------
 
-    static void MakeProp(string id, string kind, string display, string model, Vector3 position, float yaw, float mass, Transform parent)
+    public static PickupProp MakeProp(string id, string kind, string display, string model, Vector3 position, float yaw, float mass, Transform parent)
     {
-        var asset = AssetDatabase.LoadAssetAtPath<GameObject>($"Assets/Art/Models/{model}.fbx");
+        var asset = AssetDatabase.LoadAssetAtPath<GameObject>(model.Contains("/") ? model : $"Assets/Art/Models/{model}.fbx");
         var go = (GameObject)PrefabUtility.InstantiatePrefab(asset, parent);
         go.name = id;
         go.transform.SetPositionAndRotation(position, Quaternion.Euler(0f, yaw, 0f));
@@ -130,19 +137,23 @@ public static class GameplaySceneSetup
         box.size = bounds.size;
         var body = go.AddComponent<Rigidbody>();
         body.mass = mass;
-        go.AddComponent<PickupProp>().Configure(id, kind, display);
+        var prop = go.AddComponent<PickupProp>();
+        prop.Configure(id, kind, display);
+        return prop;
     }
 
-    static void MakeSocket(string id, string display, string kind, string requires, float radius, Vector3 position, Material pad, Material ghost, Transform parent)
+    public static PlacementSocket MakeSocket(string id, string display, string kind, string requires, float radius, Vector3 position, Material pad, Material ghost, Transform parent, float yaw = 180f)
     {
         var go = new GameObject($"Socket_{id}");
         go.transform.SetParent(parent, false);
-        go.transform.SetPositionAndRotation(position, Quaternion.Euler(0f, Yaw(0f), 0f));
+        go.transform.SetPositionAndRotation(position, Quaternion.Euler(0f, yaw, 0f));
         go.layer = GameLayers.Socket;
-        go.AddComponent<PlacementSocket>().Configure(id, display, kind, requires, radius, pad, ghost);
+        var socket = go.AddComponent<PlacementSocket>();
+        socket.Configure(id, display, kind, requires, radius, pad, ghost);
+        return socket;
     }
 
-    static Material TransparentUnlit(string name, Color colour)
+    public static Material TransparentUnlit(string name, Color colour)
     {
         string path = $"Assets/Art/Materials/{name}.mat";
         var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
@@ -168,7 +179,7 @@ public static class GameplaySceneSetup
 
     // Workers ----------------------------------------------------------------------
 
-    static WorkerLibrary BuildWorkerLibrary(StringBuilder report)
+    public static WorkerLibrary BuildWorkerLibrary(StringBuilder report)
     {
         // One state per clip, no transitions: WorkerAvatar cross-fades by name.
         AssetDatabase.DeleteAsset(ControllerPath);
@@ -200,7 +211,7 @@ public static class GameplaySceneSetup
 
     // HUD ---------------------------------------------------------------------------
 
-    static PanelSettings BuildPanelSettings()
+    public static PanelSettings BuildPanelSettings()
     {
         if (!File.Exists(ThemePath))
         {
@@ -224,7 +235,7 @@ public static class GameplaySceneSetup
     }
 
     /// Names the physics layers the game uses (see GameLayers).
-    static void EnsureLayers()
+    public static void EnsureLayers()
     {
         var tagManager = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset")[0]);
         var layers = tagManager.FindProperty("layers");

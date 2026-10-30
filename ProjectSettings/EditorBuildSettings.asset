@@ -6,6 +6,9 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/Scenes/Apartment.unity
+    guid: a1728cb1f21843b4482d35822f831780
+  - enabled: 1
     path: Assets/Scenes/Wedding.unity
     guid: a37733fd670bc144c9b6609e5353be8e
   - enabled: 1

@@ -16,15 +16,17 @@ public static class MaterialLibrary
 {
     const string MaterialsFolder = "Assets/Art/Materials";
     const string TexturesFolder = "Assets/Art/Textures";
-    static readonly string[] ModelFolders = { "Assets/Art/Models", "Assets/Art/Characters" };
+    static readonly string[] ModelFolders = { "Assets/Art/Models", "Assets/Art/Characters", "Assets/Art/Apartment" };
 
-    /// Material name in the pack -> texture set and tiling (models have 1 UV unit = 1 metre).
-    static readonly Dictionary<string, (string set, float tiling, float metallic)> Textured = new()
+    /// Material name in the pack -> texture set, tiling (models have 1 UV unit = 1 metre),
+    /// metallic, and how much of the set's own smoothness to keep (a waxed floor at
+    /// full gloss mirrors every lamp into bright speckles).
+    static readonly Dictionary<string, (string set, float tiling, float metallic, float gloss)> Textured = new()
     {
-        { "Oak floor", ("wood_planks", 0.5f, 0f) },
-        { "Plaster", ("wallpaper", 1f, 0f) },
-        { "Warm linen", ("fabric", 4f, 0f) },
-        { "Brushed brass", ("brushed_brass", 2f, 1f) },
+        { "Oak floor", ("wood_planks", 0.5f, 0f, 0.45f) },
+        { "Plaster", ("wallpaper", 1f, 0f, 0.6f) },
+        { "Warm linen", ("fabric", 4f, 0f, 0.6f) },
+        { "Brushed brass", ("brushed_brass", 2f, 1f, 1f) },
     };
 
     public static string Build()
@@ -68,7 +70,7 @@ public static class MaterialLibrary
             mat.SetFloat("_Metallic", 0f);
             mat.SetFloat("_Smoothness", 0.3f);
             if (Textured.TryGetValue(pair.Key, out var tex))
-                ApplyTextureSet(mat, tex.set, tex.tiling, tex.metallic);
+                ApplyTextureSet(mat, tex.set, tex.tiling, tex.metallic, tex.gloss);
             EditorUtility.SetDirty(mat);
             library[pair.Key] = mat;
         }
@@ -97,7 +99,7 @@ public static class MaterialLibrary
         return report.ToString();
     }
 
-    static void ApplyTextureSet(Material mat, string set, float tiling, float metallic)
+    static void ApplyTextureSet(Material mat, string set, float tiling, float metallic, float gloss)
     {
         var albedo = AssetDatabase.LoadAssetAtPath<Texture2D>($"{TexturesFolder}/{set}_albedo.png");
         var normal = AssetDatabase.LoadAssetAtPath<Texture2D>($"{TexturesFolder}/{set}_normal.png");
@@ -118,7 +120,7 @@ public static class MaterialLibrary
         if (packed != null)
         {
             mat.SetTexture("_MetallicGlossMap", packed);
-            mat.SetFloat("_Smoothness", 1f);
+            mat.SetFloat("_Smoothness", gloss);
             mat.EnableKeyword("_METALLICSPECGLOSSMAP");
         }
         mat.SetFloat("_Metallic", metallic);

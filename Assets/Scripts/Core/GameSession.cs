@@ -1,55 +1,60 @@
-using System.Collections.Generic;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Session root for the wedding shift. Finds the scene's props and sockets,
-/// spawns the local player, wires the interaction service and the HUD, and owns
-/// pause and restart. Solo play pauses time on the menu; once online the game
-/// must keep running for everyone else.
+/// Session root for any playable scene (the apartment, the wedding). Finds the
+/// scene's props, sockets and usable things, spawns the local player, wires the
+/// interaction service and the HUD, and owns pause, restart and scene travel.
+/// What happens in the scene (the landlord, the shift) lives in its own director.
+/// Solo play pauses time on the menu; once online the game must keep running.
 /// </summary>
 public class GameSession : MonoBehaviour
 {
+    public const string ApartmentScene = "Apartment";
+    public const string WeddingScene = "Wedding";
     const string OfflineActor = "peer_1";
-    const float TaskRefresh = 0.2f;
 
     [SerializeField] WorkerLibrary workers;
     [SerializeField] Hud hud;
-    [SerializeField] Coordinator coordinator;
     [SerializeField] Transform[] spawnPoints;
     [SerializeField] Camera previewCamera;
 
+    public static GameSession Instance { get; private set; }
     public InteractionService Service { get; private set; }
     public PlayerActor Player { get; private set; }
+    public Hud Hud => hud;
+    public WorkerLibrary Workers => workers;
     public bool MenuOpen { get; private set; }
-    public IReadOnlyList<TaskBoard.Result> TaskResults => _taskResults;
+    public bool Travelling { get; private set; }
 
-    readonly List<TaskBoard.Task> _tasks = TaskBoard.Catalog();
-    List<TaskBoard.Result> _taskResults = new();
-    float _taskTimer;
     InputAction _pause, _restart, _stats;
 
-    public void Configure(WorkerLibrary library, Hud hudComponent, Coordinator npc, Transform[] spawns, Camera preview)
+    public void Configure(WorkerLibrary library, Hud hudComponent, Transform[] spawns, Camera preview)
     {
         workers = library;
         hud = hudComponent;
-        coordinator = npc;
         spawnPoints = spawns;
         previewCamera = preview;
     }
 
     void Awake()
     {
+        Instance = this;
         if (previewCamera != null)
             previewCamera.gameObject.SetActive(false);
         QualitySettings.vSyncCount = 1;
         Application.targetFrameRate = -1;
+        Time.timeScale = 1f;
 
         Service = new InteractionService();
         foreach (var prop in FindObjectsByType<PickupProp>(FindObjectsSortMode.None))
             Service.RegisterProp(prop);
         foreach (var socket in FindObjectsByType<PlacementSocket>(FindObjectsSortMode.None))
             Service.RegisterSocket(socket);
+        foreach (var thing in FindObjectsByType<Interactable>(FindObjectsSortMode.None))
+            Service.RegisterInteractable(thing);
 
         Player = SpawnPlayer(OfflineActor, 0);
         Player.Submit = Submit;
@@ -59,6 +64,7 @@ public class GameSession : MonoBehaviour
 
         hud.ResumeRequested += () => SetMenu(false);
         hud.RestartRequested += Restart;
+        hud.NewGameRequested += NewGame;
         hud.QuitRequested += Quit;
 
         _pause = new InputAction("pause", InputActionType.Button, "<Keyboard>/escape");
@@ -70,14 +76,12 @@ public class GameSession : MonoBehaviour
         _stats.Enable();
     }
 
-    void Start()
-    {
-        RefreshTasks();
-        SetMenu(false);
-    }
+    void Start() => SetMenu(false);
 
     void OnDestroy()
     {
+        if (Instance == this)
+            Instance = null;
         _pause?.Dispose();
         _restart?.Dispose();
         _stats?.Dispose();
@@ -87,23 +91,18 @@ public class GameSession : MonoBehaviour
     void Update()
     {
         if (_pause.WasPressedThisFrame())
+        {
+            if (!MenuOpen && Player.EscapeHandler != null && Player.EscapeHandler())
+                return;
             SetMenu(!MenuOpen);
+        }
         if (_restart.WasPressedThisFrame())
             Restart();
         if (_stats.WasPressedThisFrame())
             hud.ToggleStats();
         // A click back into the window recaptures the mouse.
-        if (!MenuOpen && Cursor.lockState != CursorLockMode.Locked && Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
+        if (!MenuOpen && !Player.WantsCursor && Cursor.lockState != CursorLockMode.Locked && Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
             LockCursor(true);
-
-        _taskTimer += Time.unscaledDeltaTime;
-        if (_taskTimer >= TaskRefresh)
-        {
-            _taskTimer = 0f;
-            RefreshTasks();
-            if (coordinator != null)
-                hud.SetCoordinator(coordinator.State);
-        }
     }
 
     void OnApplicationFocus(bool focused)
@@ -128,23 +127,38 @@ public class GameSession : MonoBehaviour
     {
         var result = Service.Request(req);
         Player.ReportResult(req.Action, result);
-        if (result == InteractionResult.Ok)
-            RefreshTasks();
     }
 
-    public void Restart()
+    public void Restart() => TravelTo(SceneManager.GetActiveScene().name, 0.25f);
+
+    void NewGame()
     {
-        Service.ResetAll();
-        Player.ResetToSpawn();
-        SetMenu(false);
-        RefreshTasks();
+        CrewState.StartOver();
+        TravelTo(ApartmentScene, 0.4f);
     }
 
-    void RefreshTasks()
+    /// Fade out and load another scene (going to work, coming home).
+    public void TravelTo(string scene, float fadeSeconds = 0.8f)
     {
-        _taskResults = TaskBoard.Evaluate(_tasks, Service.Occupancy());
-        hud.SetTasks(_taskResults);
+        if (Travelling)
+            return;
+        Travelling = true;
+        StartCoroutine(TravelRoutine(scene, fadeSeconds));
     }
+
+    IEnumerator TravelRoutine(string scene, float fadeSeconds)
+    {
+        Time.timeScale = 1f;
+        hud.SetMenuVisible(false);
+        Player.Lock();
+        hud.Fade(1f, fadeSeconds);
+        yield return new WaitForSecondsRealtime(fadeSeconds + 0.05f);
+        GameSettings.Save();
+        SceneManager.LoadScene(scene);
+    }
+
+    /// Call after changing Player.WantsCursor.
+    public void RefreshCursor() => LockCursor(!MenuOpen && !Player.WantsCursor);
 
     void SetMenu(bool open)
     {
@@ -154,7 +168,7 @@ public class GameSession : MonoBehaviour
         Time.timeScale = open ? 0f : 1f;
         Player.ControlsEnabled = !open;
         hud.SetMenuVisible(open);
-        LockCursor(!open);
+        RefreshCursor();
     }
 
     static void LockCursor(bool locked)

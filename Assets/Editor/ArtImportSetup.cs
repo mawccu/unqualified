@@ -18,7 +18,9 @@ public static class ArtImportSetup
     const string CharactersFolder = "Assets/Art/Characters";
     const string TexturesFolder = "Assets/Art/Textures";
 
-    static readonly string[] LoopingClips = { "idle", "walk", "sprint", "carry_idle", "carry_walk", "clean" };
+    const string ApartmentFolder = "Assets/Art/Apartment";
+    static readonly string[] LoopingClips = { "idle", "walk", "sprint", "carry_idle", "carry_walk", "clean",
+        "knock", "talk", "point", "offer", "impatient", "hold_paper", "sit_type" };
     static readonly string[] TextureSets = { "wood_planks", "wallpaper", "fabric", "brushed_brass" };
 
     public static string RunAll()
@@ -35,7 +37,7 @@ public static class ArtImportSetup
     public static string ConfigureProps()
     {
         int count = 0;
-        foreach (string guid in AssetDatabase.FindAssets("t:Model", new[] { ModelsFolder }))
+        foreach (string guid in AssetDatabase.FindAssets("t:Model", new[] { ModelsFolder, ApartmentFolder }))
         {
             string path = AssetDatabase.GUIDToAssetPath(guid);
             var importer = (ModelImporter)AssetImporter.GetAtPath(path);
@@ -152,7 +154,7 @@ public static class ArtImportSetup
     public static string ListModelMaterials()
     {
         var sb = new StringBuilder();
-        foreach (string folder in new[] { ModelsFolder, CharactersFolder })
+        foreach (string folder in new[] { ModelsFolder, CharactersFolder, ApartmentFolder })
         {
             foreach (string guid in AssetDatabase.FindAssets("t:Model", new[] { folder }))
             {

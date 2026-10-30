@@ -73,5 +73,14 @@ public static class WorkerCostumes
         Accent = new(0.85f, 0.75f, 0.55f), HairStyle = "ponytail", Accessories = new[] { "headset", "lanyard" },
     };
 
+    /// The landlord: yellowed vest top, a brown cardigan, grey hair, a belt doing a lot of work.
+    public static readonly Costume Landlord = new()
+    {
+        Name = "Landlord",
+        Shirt = new(0.86f, 0.82f, 0.66f), Vest = new(0.36f, 0.27f, 0.19f), Trousers = new(0.30f, 0.29f, 0.31f),
+        Shoes = new(0.26f, 0.18f, 0.12f), Skin = new(0.82f, 0.62f, 0.52f), Hair = new(0.58f, 0.56f, 0.53f),
+        Accent = new(0.40f, 0.30f, 0.18f), HairStyle = "short", Accessories = new[] { "belt" },
+    };
+
     public static Costume ForSlot(int slot) => Variants[((slot % Variants.Length) + Variants.Length) % Variants.Length];
 }

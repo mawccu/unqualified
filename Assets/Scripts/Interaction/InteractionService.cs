@@ -1,12 +1,16 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public enum InteractionAction { Pickup, Place, Drop }
+public enum InteractionAction { Pickup, Place, Drop, Use }
 
 public enum InteractionResult
 {
     Ok, UnknownActor, NoTarget, HandsFull, NothingHeld, AlreadyHeld,
     OutOfRange, StaleRevision, SocketTaken, SocketRejects, SocketLocked,
+    /// Someone else is using it.
+    Busy,
+    /// Not at this point of the story; the Interactable says why.
+    NotNow,
 }
 
 /// <summary>A player's intent. Offline play and remote peers send the same thing.</summary>
@@ -45,10 +49,12 @@ public sealed class InteractionService
     readonly Dictionary<string, IInteractionActor> _actors = new();
     readonly Dictionary<string, PickupProp> _props = new();
     readonly Dictionary<string, PlacementSocket> _sockets = new();
+    readonly Dictionary<string, Interactable> _interactables = new();
 
     public void RegisterActor(IInteractionActor actor) => _actors[actor.ActorId] = actor;
     public void RegisterProp(PickupProp prop) => _props[prop.EntityId] = prop;
     public void RegisterSocket(PlacementSocket socket) => _sockets[socket.EntityId] = socket;
+    public void RegisterInteractable(Interactable thing) => _interactables[thing.EntityId] = thing;
 
     /// A player left. On the authority, whatever they held is dropped where it is.
     public void UnregisterActor(string actorId)
@@ -59,11 +65,15 @@ public sealed class InteractionService
             held.Release(Vector3.zero);
         actor.HeldPropId = "";
         _actors.Remove(actorId);
+        foreach (var thing in _interactables.Values)
+            thing.OnActorLeft(actorId);
     }
 
     public IEnumerable<PickupProp> Props => _props.Values;
     public PickupProp GetProp(string id) => id != null && _props.TryGetValue(id, out var p) ? p : null;
     public PlacementSocket GetSocket(string id) => id != null && _sockets.TryGetValue(id, out var s) ? s : null;
+    public Interactable GetInteractable(string id) => id != null && _interactables.TryGetValue(id, out var i) ? i : null;
+    public IInteractionActor GetActor(string id) => id != null && _actors.TryGetValue(id, out var a) ? a : null;
 
     /// Socket id to the id of the prop sitting in it. Empty sockets are left out.
     public Dictionary<string, string> Occupancy()
@@ -84,6 +94,7 @@ public sealed class InteractionService
         {
             InteractionAction.Pickup => ValidatePickup(actor, req),
             InteractionAction.Place => ValidatePlace(actor, req),
+            InteractionAction.Use => ValidateUse(actor, req),
             _ => ValidateDrop(actor),
         };
     }
@@ -151,6 +162,45 @@ public sealed class InteractionService
         return InteractionResult.Ok;
     }
 
+    InteractionResult ValidateUse(IInteractionActor actor, in InteractionRequest req)
+    {
+        var thing = GetInteractable(req.TargetId);
+        if (thing == null)
+            return InteractionResult.NoTarget;
+        if (thing.DistanceFrom(actor.EyePosition) > MaxReach)
+            return InteractionResult.OutOfRange;
+        return thing.CanUse(actor);
+    }
+
+    /// A hand-over from someone who is not a player (the landlord's bill): the
+    /// authority gives the prop straight to the actor. Until this call the prop
+    /// is the giver's; after it, the actor's. Never both.
+    public InteractionResult GiveProp(PickupProp prop, IInteractionActor actor)
+    {
+        if (!string.IsNullOrEmpty(actor.HeldPropId))
+            return InteractionResult.HandsFull;
+        prop.BeginHold(actor.HoldPoint, actor.ActorId);
+        actor.HeldPropId = prop.EntityId;
+        return InteractionResult.Ok;
+    }
+
+    /// Puts what the actor holds onto a socket without the reach check (a seat
+    /// at the desk puts the bill down beside the keyboard).
+    public InteractionResult PlaceHeldOn(IInteractionActor actor, PlacementSocket socket)
+    {
+        var held = GetProp(actor.HeldPropId);
+        if (held == null)
+            return InteractionResult.NothingHeld;
+        if (!string.IsNullOrEmpty(socket.OccupantId))
+            return InteractionResult.SocketTaken;
+        if (!socket.Accepts(held))
+            return InteractionResult.SocketRejects;
+        socket.OccupantId = held.EntityId;
+        held.PlaceAt(socket.SnapPosition, socket.transform.rotation, socket.EntityId);
+        actor.HeldPropId = "";
+        return InteractionResult.Ok;
+    }
+
     InteractionResult ValidateDrop(IInteractionActor actor) =>
         GetProp(actor.HeldPropId) == null ? InteractionResult.NothingHeld : InteractionResult.Ok;
 
@@ -184,6 +234,9 @@ public sealed class InteractionService
                 actor.HeldPropId = "";
                 break;
             }
+            case InteractionAction.Use:
+                _interactables[req.TargetId].Use(actor);
+                break;
         }
     }
 

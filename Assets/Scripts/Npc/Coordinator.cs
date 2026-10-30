@@ -1,3 +1,6 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -46,10 +49,12 @@ public class Coordinator : MonoBehaviour
     float _pauseLeft;
     bool _arrived;
     Vector3 _lastPosition;
+    bool _greeting;
+    Transform _greetTarget;
 
     public void Configure(WorkerLibrary library) => workers = library;
 
-    void Start()
+    void Awake()
     {
         transform.position = Route[0].Position;
         _lastPosition = transform.position;
@@ -57,9 +62,43 @@ public class Coordinator : MonoBehaviour
             _avatar = WorkerAvatar.Create(workers, 0, WorkerCostumes.Coordinator, transform);
     }
 
+    /// Meet the crew at the staff entrance before the patrol: face the target,
+    /// say each line with its pose, then go about the route.
+    public void Greet(Transform target, Transform spot, IList<(string pose, string line, float seconds)> lines, Action<string, float> say)
+    {
+        transform.SetPositionAndRotation(spot.position, spot.rotation);
+        _lastPosition = transform.position;
+        _greetTarget = target;
+        _greeting = true;
+        State = "welcoming the crew";
+        StartCoroutine(GreetRoutine(lines, say));
+    }
+
+    IEnumerator GreetRoutine(IList<(string pose, string line, float seconds)> lines, Action<string, float> say)
+    {
+        yield return new WaitForSeconds(1.2f);
+        foreach (var (pose, line, seconds) in lines)
+        {
+            _avatar?.Perform(pose);
+            say?.Invoke(line, seconds);
+            yield return new WaitForSeconds(seconds);
+        }
+        _avatar?.Perform(WorkerAvatar.Idle);
+        _greeting = false;
+        _stop = 0;
+        _arrived = false;
+    }
+
     void Update()
     {
         float dt = Time.deltaTime;
+        if (_greeting)
+        {
+            if (_greetTarget != null)
+                Face(_greetTarget.position, dt);
+            _lastPosition = transform.position;
+            return;
+        }
         if (Authoritative)
             Walk(dt);
         var velocity = (transform.position - _lastPosition) / Mathf.Max(dt, 0.0001f);

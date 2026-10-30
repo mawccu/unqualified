@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 /// <summary>
@@ -34,6 +35,7 @@ public class PickupProp : MonoBehaviour
     Vector3 _startPosition;
     Quaternion _startRotation;
     Transform _holdTarget;
+    Func<Pose> _npcPose;
     float _heldYaw;
     Vector3 _lastHoldPosition;
     Vector2 _tilt, _tiltVelocity;
@@ -59,11 +61,16 @@ public class PickupProp : MonoBehaviour
     {
         if (_holdTarget != null)
             FollowHold(Time.deltaTime);
+        else if (_npcPose != null)
+        {
+            var pose = _npcPose();
+            transform.SetPositionAndRotation(pose.position, pose.rotation);
+        }
     }
 
     void FixedUpdate()
     {
-        if (_holdTarget == null && string.IsNullOrEmpty(SocketId) && transform.position.y < FallLimit)
+        if (_holdTarget == null && _npcPose == null && string.IsNullOrEmpty(SocketId) && transform.position.y < FallLimit)
             ResetToStart();
     }
 
@@ -89,8 +96,21 @@ public class PickupProp : MonoBehaviour
         transform.SetPositionAndRotation(target, Quaternion.Euler(_tilt.x * Mathf.Rad2Deg, _heldYaw, _tilt.y * Mathf.Rad2Deg));
     }
 
+    /// Held by someone who is not a player (the landlord): it follows the pose
+    /// they give every frame and cannot be picked up until they hand it over.
+    public void HoldByNpc(string holder, Func<Pose> pose)
+    {
+        _holdTarget = null;
+        _npcPose = pose;
+        HolderId = holder;
+        SocketId = "";
+        SetPhysical(false, false);
+        Revision++;
+    }
+
     public void BeginHold(Transform target, string holder)
     {
+        _npcPose = null;
         _holdTarget = target;
         _heldYaw = target.eulerAngles.y;
         _lastHoldPosition = target.position;
@@ -104,6 +124,7 @@ public class PickupProp : MonoBehaviour
     public void PlaceAt(Vector3 position, Quaternion rotation, string socket)
     {
         _holdTarget = null;
+        _npcPose = null;
         HolderId = "";
         SocketId = socket;
         SetPhysical(false, true);
@@ -114,6 +135,7 @@ public class PickupProp : MonoBehaviour
     public void Release(Vector3 velocity)
     {
         _holdTarget = null;
+        _npcPose = null;
         HolderId = "";
         SetPhysical(true, true);
         _body.linearVelocity = velocity;
@@ -124,6 +146,7 @@ public class PickupProp : MonoBehaviour
     public void ResetToStart()
     {
         _holdTarget = null;
+        _npcPose = null;
         HolderId = "";
         SocketId = "";
         SetPhysical(false, true);
