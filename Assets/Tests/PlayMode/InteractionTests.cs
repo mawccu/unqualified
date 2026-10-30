@@ -131,7 +131,10 @@ public class InteractionTests
         Assert.AreEqual(InteractionResult.Ok, _service.Request(Pickup(_actor, _prop, 0)));
         Assert.AreEqual("peer_1", _prop.HolderId);
         Assert.AreEqual("cake_base", _actor.HeldPropId);
+        // It travels into the hands rather than jumping there.
         yield return null;
+        Assert.Greater(Vector3.Distance(_prop.transform.position, _actor.HoldPoint.position), 0.05f, "a picked-up prop does not teleport to the hands");
+        yield return new WaitForSeconds(PickupProp.GrabSeconds + 0.1f);
         Assert.Less(Vector3.Distance(_prop.transform.position, _actor.HoldPoint.position), 0.01f, "held prop follows the hold point");
         Assert.AreEqual(InteractionResult.HandsFull, _service.Request(Pickup(_actor, _prop, _prop.Revision)));
         Assert.AreEqual(InteractionResult.AlreadyHeld, _service.Request(Pickup(_other, _prop, _prop.Revision)), "a second actor cannot take a held prop");
@@ -143,9 +146,10 @@ public class InteractionTests
         Assert.AreEqual(InteractionResult.Ok, _service.Request(Place(_actor, _socket)));
         Assert.AreEqual("cake_base", _socket.OccupantId);
         Assert.AreEqual("", _actor.HeldPropId, "hands are empty after placing");
+        yield return new WaitForSeconds(PickupProp.PlaceSeconds + 0.1f);
         for (int i = 0; i < 5; i++)
             yield return new WaitForFixedUpdate();
-        Assert.Less(Vector3.Distance(_prop.transform.position, _socket.SnapPosition), 0.01f, "placed prop stays on the socket");
+        Assert.Less(Vector3.Distance(_prop.transform.position, _socket.SnapPosition), 0.01f, "placed prop settles on the socket and stays");
 
         Assert.AreEqual(InteractionResult.Ok, _service.Request(Pickup(_actor, _prop, _prop.Revision)), "a placed prop can be picked up again");
         Assert.AreEqual("", _socket.OccupantId);

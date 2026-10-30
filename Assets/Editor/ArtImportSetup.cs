@@ -19,6 +19,7 @@ public static class ArtImportSetup
     const string TexturesFolder = "Assets/Art/Textures";
 
     const string ApartmentFolder = "Assets/Art/Apartment";
+    const string HandsFolder = "Assets/Art/Hands";
     static readonly string[] LoopingClips = { "idle", "walk", "sprint", "carry_idle", "carry_walk", "clean",
         "knock", "talk", "point", "offer", "impatient", "hold_paper", "sit_type" };
     static readonly string[] TextureSets = { "wood_planks", "wallpaper", "fabric", "brushed_brass" };
@@ -37,7 +38,7 @@ public static class ArtImportSetup
     public static string ConfigureProps()
     {
         int count = 0;
-        foreach (string guid in AssetDatabase.FindAssets("t:Model", new[] { ModelsFolder, ApartmentFolder }))
+        foreach (string guid in AssetDatabase.FindAssets("t:Model", new[] { ModelsFolder, ApartmentFolder, HandsFolder }))
         {
             string path = AssetDatabase.GUIDToAssetPath(guid);
             var importer = (ModelImporter)AssetImporter.GetAtPath(path);

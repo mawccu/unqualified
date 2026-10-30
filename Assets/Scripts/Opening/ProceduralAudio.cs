@@ -7,7 +7,12 @@ using UnityEngine;
 public static class ProceduralAudio
 {
     const int Rate = 44100;
-    static AudioClip _knock, _drip;
+    static AudioClip _knock, _drip, _footstep;
+
+    /// A soft shoe on a hard floor: a dull heel thump and a short scuff.
+    public static AudioClip Footstep => _footstep ??= Make("footstep", 0.18f, t =>
+        Mathf.Sin(2f * Mathf.PI * 75f * t) * Mathf.Exp(-t * 45f) * 0.5f
+        + (Random.value * 2f - 1f) * Mathf.Exp(-t * 70f) * 0.18f);
 
     /// Two heavy knuckle thumps on a wooden door, a quarter second apart.
     public static AudioClip Knock => _knock ??= Make("knock", 0.6f, t => Thump(t) + Thump(t - 0.24f) * 1.1f);

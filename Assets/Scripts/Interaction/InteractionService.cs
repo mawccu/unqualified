@@ -40,7 +40,8 @@ public interface IInteractionActor
 /// </summary>
 public sealed class InteractionService
 {
-    public const float MaxReach = 3.6f;
+    /// Arm's length plus a lean: nothing is picked up, placed or used from further away.
+    public const float MaxReach = 1.8f;
 
     /// False on a client: the host owns the truth, so this copy never drops or
     /// releases props by itself. It only validates, for prompts.

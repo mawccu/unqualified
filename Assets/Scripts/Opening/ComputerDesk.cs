@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 /// <summary>
 /// The battered desk and its computer. One person at a time: sitting down locks
@@ -11,17 +12,66 @@ public class ComputerDesk : Interactable
     [SerializeField] Transform seat;
     [SerializeField] Transform screenView;
     [SerializeField] ComputerScreen screen;
+    [SerializeField] Transform keyboard;
 
     string _user = "";
     PlayerActor _local;
+    readonly float[] _tap = new float[2];
+    int _nextHand;
 
     public string User => _user;
 
-    public void Configure(Transform seatSpot, Transform view, ComputerScreen computer)
+    public void Configure(Transform seatSpot, Transform view, ComputerScreen computer, Transform keys)
     {
         seat = seatSpot;
         screenView = view;
         screen = computer;
+        keyboard = keys;
+    }
+
+    /// A hand resting on the keyboard (side +1 right), dipping when it taps a key.
+    Pose KeyboardHand(float side, int index)
+    {
+        Vector3 toScreen = -keyboard.forward;
+        Vector3 right = Vector3.Cross(Vector3.up, toScreen).normalized;
+        Vector3 wrist = keyboard.position + right * (side * 0.09f) + keyboard.forward * 0.06f
+            + Vector3.up * (0.05f - _tap[index] * 0.012f);
+        return new Pose(wrist, Quaternion.LookRotation(toScreen - Vector3.up * 0.35f, Vector3.up));
+    }
+
+    void Update()
+    {
+        if (_local == null)
+            return;
+        for (int i = 0; i < 2; i++)
+            _tap[i] = Mathf.MoveTowards(_tap[i], 0f, Time.deltaTime * 9f);
+        // Typing and clicking show on the hands.
+        bool pressed = (Keyboard.current != null && Keyboard.current.anyKey.wasPressedThisFrame)
+            || (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame);
+        if (pressed)
+            Tap(_nextHand++ % 2);
+    }
+
+    void Tap(int hand)
+    {
+        _tap[hand] = 1f;
+        if (_local != null)
+            StartCoroutine(TapGrip(_local, hand == 0 ? FirstPersonArms.Side.Right : FirstPersonArms.Side.Left));
+    }
+
+    IEnumerator TapGrip(PlayerActor player, FirstPersonArms.Side side)
+    {
+        player.Arms.SetOverrideGrip(side, Grip.Push);
+        yield return new WaitForSeconds(0.12f);
+        if (_local == player)
+            player.Arms.SetOverrideGrip(side, Grip.Keyboard);
+    }
+
+    /// The finger that sends the application.
+    public void PressEnter()
+    {
+        _nextHand = 0;
+        Tap(0);
     }
 
     static OpeningDirector Director => OpeningDirector.Instance;
@@ -61,6 +111,8 @@ public class ComputerDesk : Interactable
         player.SetLook(seat.eulerAngles.y, 12f);
         player.Avatar.SetIdlePose(WorkerAvatar.SitType);
         player.SetCameraOverride(new Pose(screenView.position, screenView.rotation), 0.7f);
+        player.Arms.SetOverride(FirstPersonArms.Side.Right, () => KeyboardHand(1f, 0), Grip.Keyboard, 0.6f);
+        player.Arms.SetOverride(FirstPersonArms.Side.Left, () => KeyboardHand(-1f, 1), Grip.Keyboard, 0.7f);
         player.WantsCursor = true;
         player.EscapeHandler = () =>
         {
@@ -86,6 +138,7 @@ public class ComputerDesk : Interactable
         _user = "";
         screen.Close();
         player.ClearCameraOverride(0.5f);
+        player.Arms.ClearAll(0.4f);
         player.WantsCursor = false;
         player.EscapeHandler = null;
         player.Avatar.SetIdlePose(null);

@@ -12,5 +12,14 @@ public class WorkerLibrary : ScriptableObject
     public GameObject[] models;
     public RuntimeAnimatorController controller;
 
+    [Header("First-person arms (segments, pivot at the joint, length along +Z)")]
+    public GameObject armUpper;
+    public GameObject armForearm;
+    public GameObject handPalm;
+    public GameObject fingerBase;
+    public GameObject fingerTip;
+    public GameObject thumbBase;
+    public GameObject thumbTip;
+
     public GameObject ModelForSlot(int slot) => models[((slot % models.Length) + models.Length) % models.Length];
 }

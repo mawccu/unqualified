@@ -19,8 +19,13 @@ public class Landlord : Interactable
     [SerializeField] Transform exitSpot;
     [SerializeField] AudioSource doorAudio;
 
+    /// How far a player's eye may be from the bill's free edge to take it.
+    public const float HandoverReach = 1.3f;
+
     WorkerAvatar _avatar;
-    Transform _handL, _handR;
+    Transform _handL, _handR, _head;
+    bool _lookAtBill;
+    float _headDip;
     Transform _faceTarget;
     bool _walking, _offering, _knocking;
     Vector3 _lastPosition;
@@ -44,6 +49,7 @@ public class Landlord : Interactable
         _avatar = WorkerAvatar.Create(workers, 0, WorkerCostumes.Landlord, transform);
         _handL = _avatar.FindBone("HandL");
         _handR = _avatar.FindBone("HandR");
+        _head = _avatar.FindBone("Head");
         _lastPosition = transform.position;
     }
 
@@ -55,14 +61,17 @@ public class Landlord : Interactable
         _avatar.Perform(WorkerAvatar.Impatient, 0f);
     }
 
-    /// Where the bill sits: held out flat toward whoever he faces while offering,
-    /// otherwise hanging from his left hand.
+    /// Where the bill sits: held out by one edge toward whoever he faces while
+    /// offering (print toward them, its other edge free to take), otherwise hanging
+    /// from his left hand.
     Pose BillPose()
     {
         if (_offering && _handR != null)
         {
-            var pos = _handR.position + transform.forward * 0.06f - Vector3.up * 0.2f;
-            return new Pose(pos, transform.rotation * Quaternion.Euler(-8f, 180f, 0f));
+            var rotation = transform.rotation * Quaternion.Euler(0f, 180f, 0f) * Quaternion.Euler(-6f, 0f, 0f);
+            // His fingers are at the sheet's -X edge (his right), a little above its middle.
+            var pos = _handR.position + transform.forward * 0.03f - rotation * new Vector3(-0.1f, 0.17f, 0f);
+            return new Pose(pos, rotation);
         }
         var hand = _handL != null ? _handL : transform;
         return new Pose(hand.position - Vector3.up * 0.26f + transform.forward * 0.03f, transform.rotation * Quaternion.Euler(0f, 90f, 0f));
@@ -85,6 +94,16 @@ public class Landlord : Interactable
         }
         _lastPosition = transform.position;
     }
+
+    void LateUpdate()
+    {
+        // His eyes go from your face to the paper while you take it.
+        _headDip = Mathf.MoveTowards(_headDip, _lookAtBill ? 20f : 0f, Time.deltaTime * 60f);
+        if (_head != null && _headDip > 0.01f)
+            _head.rotation = Quaternion.AngleAxis(_headDip, transform.right) * _head.rotation;
+    }
+
+    public void LookAtBill(bool on) => _lookAtBill = on;
 
     public void Perform(string state)
     {
@@ -172,12 +191,27 @@ public class Landlord : Interactable
         var director = OpeningDirector.Instance;
         if (director == null || director.Stage != OpeningStage.BillOffered)
             return InteractionResult.NotNow;
-        return string.IsNullOrEmpty(actor.HeldPropId) ? InteractionResult.Ok : InteractionResult.HandsFull;
+        if (director.HandoverInProgress)
+            return InteractionResult.Busy;
+        if (!string.IsNullOrEmpty(actor.HeldPropId))
+            return InteractionResult.HandsFull;
+        return BillReachable(actor) ? InteractionResult.Ok : InteractionResult.NotNow;
     }
 
-    public override void Use(IInteractionActor actor)
+    public override string BlockedReason(IInteractionActor actor)
     {
-        if (OpeningDirector.Instance.TakeBill(actor) == InteractionResult.Ok)
-            _offering = false;
+        var director = OpeningDirector.Instance;
+        return director != null && director.Stage == OpeningStage.BillOffered && !BillReachable(actor) ? "Step closer to take it." : "";
     }
+
+    bool BillReachable(IInteractionActor actor)
+    {
+        var bill = OpeningDirector.Instance.Bill;
+        var edge = Grips.PaperEdge(bill.transform, bill.LocalBounds, 1f).Wrist.position;
+        return Vector3.Distance(actor.EyePosition, edge) <= HandoverReach;
+    }
+
+    public override void Use(IInteractionActor actor) => OpeningDirector.Instance.BeginHandover(actor);
+
+    public override void OnActorLeft(string actorId) => OpeningDirector.Instance?.OnActorLeft(actorId);
 }

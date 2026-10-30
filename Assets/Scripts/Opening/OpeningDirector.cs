@@ -34,6 +34,13 @@ public class OpeningDirector : MonoBehaviour
     bool _skipPressed;
     float _cardTimer;
     bool _replay;
+    // The bill exchange in progress: who reserved it, and whether it has changed hands yet.
+    string _handoverActor;
+    bool _handoverCommitted;
+    Coroutine _handover;
+    PlayerActor _handoverPlayer;
+
+    public bool HandoverInProgress => _handoverActor != null;
 
     public void Configure(GameSession owner, Landlord npc, FrontDoor frontDoor, PickupProp rentBill, PlacementSocket spot, Transform eye)
     {
@@ -92,8 +99,6 @@ public class OpeningDirector : MonoBehaviour
             _cardTimer = 0f;
             RefreshCard();
         }
-        var held = session.Player.HeldProp;
-        session.Hud.ShowDocument(held != null && held == bill ? BillText(CrewState.Current) : null);
     }
 
     // The sequence ---------------------------------------------------------------------
@@ -110,9 +115,20 @@ public class OpeningDirector : MonoBehaviour
         hud.Fade(0f, _replay ? 0.8f : 2.2f);
         landlord.Knock();
         yield return new WaitForSeconds(_replay ? 0.8f : 2.6f);
-        // Sit up and come to your feet: the camera rises from the couch to eye height.
+        // Sit up and come to your feet: both hands push off the cushion while the
+        // camera rises from the couch to eye height, then let go.
+        var arms = player.Arms;
+        var down = Quaternion.LookRotation(wakeEye.rotation * Vector3.forward - Vector3.up * 2f, Vector3.up);
+        Vector3 seat = wakeEye.position + Vector3.down * 0.2f;
+        var flat = Vector3.ProjectOnPlane(player.transform.forward, Vector3.up).normalized;
+        var side = Vector3.Cross(Vector3.up, flat);
+        arms.SetOverride(FirstPersonArms.Side.Right, () => new Pose(seat + side * 0.22f + flat * 0.25f, Quaternion.LookRotation(flat, Vector3.up)), Grip.Open, 0.3f);
+        arms.SetOverride(FirstPersonArms.Side.Left, () => new Pose(seat - side * 0.22f + flat * 0.25f, Quaternion.LookRotation(flat, Vector3.up)), Grip.Open, 0.3f);
+        yield return new WaitForSeconds(0.3f);
         player.ClearCameraOverride(1.8f);
-        yield return new WaitForSeconds(1.8f);
+        yield return new WaitForSeconds(1.1f);
+        arms.ClearAll(0.5f);
+        yield return new WaitForSeconds(0.7f);
         hud.SetCrosshairVisible(true);
         player.Unlock();
         SetStage(OpeningStage.Knocking);
@@ -125,12 +141,36 @@ public class OpeningDirector : MonoBehaviour
         if (Stage != OpeningStage.Knocking)
             return;
         SetStage(OpeningStage.LandlordAtDoor);
-        door.Open();
         StartCoroutine(Confrontation(opener));
+    }
+
+    /// The opener's hand goes to the handle, turns it, the door swings, the hand lets go.
+    IEnumerator OpenDoorByHand(IInteractionActor opener)
+    {
+        var player = opener as PlayerActor;
+        bool local = player != null && player == session.Player;
+        if (local)
+        {
+            player.Lock();
+            player.ApproachForReach(door.HandleGrip().position, 0.5f, 0.3f, 0.5f);
+            player.Arms.SetOverride(FirstPersonArms.Side.Right, door.HandleGrip, Grip.Open, 0.32f);
+            yield return new WaitForSeconds(0.32f);
+            player.Arms.SetOverrideGrip(FirstPersonArms.Side.Right, Grip.Wrap);
+            yield return new WaitForSeconds(0.18f);
+        }
+        door.Open();
+        if (local)
+        {
+            yield return new WaitForSeconds(0.22f);
+            player.Arms.SetOverrideGrip(FirstPersonArms.Side.Right, Grip.Open);
+            player.Arms.ClearOverride(FirstPersonArms.Side.Right, 0.35f);
+            player.Unlock();
+        }
     }
 
     IEnumerator Confrontation(IInteractionActor opener)
     {
+        yield return OpenDoorByHand(opener);
         var face = (opener as Component)?.transform;
         yield return landlord.StepIntoDoorway(face);
         landlord.Perform(WorkerAvatar.Talk);
@@ -153,21 +193,128 @@ public class OpeningDirector : MonoBehaviour
         }
     }
 
-    /// The hand-over: the bill goes from the landlord's hand to the player's. Called on the authority.
-    public InteractionResult TakeBill(IInteractionActor taker)
+    // The bill exchange ---------------------------------------------------------------
+    //
+    // A transaction: reserve -> reach -> contact -> commit -> retract -> done. Before
+    // the commit the bill is the landlord's and a cancel puts everything back; the
+    // commit happens exactly once, at the moment the fingers close on the paper,
+    // and keeps the bill's pose (it never jumps between hands); after it the bill is
+    // the player's whatever happens.
+    public const float ReachSeconds = 0.35f, ContactSeconds = 0.2f, RetractSeconds = 0.45f;
+
+    /// Step one: someone asked to take the bill. Called on the authority.
+    public InteractionResult BeginHandover(IInteractionActor taker)
     {
         if (Stage != OpeningStage.BillOffered)
+            return InteractionResult.NotNow;
+        if (_handoverActor != null)
+            return InteractionResult.Busy;
+        if (!string.IsNullOrEmpty(taker.HeldPropId))
+            return InteractionResult.HandsFull;
+        _handoverActor = taker.ActorId;
+        _handoverCommitted = false;
+        _handover = StartCoroutine(Handover(taker));
+        return InteractionResult.Ok;
+    }
+
+    IEnumerator Handover(IInteractionActor taker)
+    {
+        var player = taker as PlayerActor;
+        bool local = player != null && player == session.Player;
+        _handoverPlayer = local ? player : null;
+        landlord.LookAtBill(true);
+        if (local)
+        {
+            // Reach: step in if needed, the open hand goes to the free edge of the
+            // sheet he is holding out.
+            player.Lock();
+            player.ApproachForReach(Grips.PaperEdge(bill.transform, bill.LocalBounds, 1f).Wrist.position, 0.58f, ReachSeconds, 0.45f);
+            player.Arms.SetOverride(FirstPersonArms.Side.Right,
+                () => Grips.PaperEdge(bill.transform, bill.LocalBounds, 1f).Wrist, Grip.Open, ReachSeconds);
+        }
+        yield return new WaitForSeconds(ReachSeconds);
+        // Contact: fingers close on the paper; both of them are touching it now.
+        if (local)
+            player.Arms.SetOverrideGrip(FirstPersonArms.Side.Right, Grip.Pinch);
+        AudioSource.PlayClipAtPoint(PropPhysics.ImpactClip(PropCategory.Paper), bill.transform.position, 0.7f);
+        yield return new WaitForSeconds(ContactSeconds);
+        // Commit: once. The bill keeps its pose and travels from here to the reader.
+        var result = CommitHandover(taker);
+        if (result != InteractionResult.Ok)
+        {
+            CancelHandover();
+            yield break;
+        }
+        landlord.LookAtBill(false);
+        landlord.Perform(WorkerAvatar.Idle);
+        if (local)
+        {
+            // The hand stays on the same edge, now of the player's bill, and comes back with it.
+            player.Arms.ClearOverride(FirstPersonArms.Side.Right, 0.05f);
+        }
+        yield return new WaitForSeconds(RetractSeconds);
+        if (local)
+            player.Unlock();
+        _handoverPlayer = null;
+        _handover = null;
+        StartCoroutine(Departure());
+    }
+
+    /// The single moment ownership changes.
+    InteractionResult CommitHandover(IInteractionActor taker)
+    {
+        if (_handoverCommitted || _handoverActor != taker.ActorId || Stage != OpeningStage.BillOffered)
             return InteractionResult.NotNow;
         var result = session.Service.GiveProp(bill, taker);
         if (result != InteractionResult.Ok)
             return result;
+        _handoverCommitted = true;
+        _handoverActor = null;
         var crew = CrewState.Current;
         crew.billReceived = true;
         crew.Save();
         PlayerPrefs.SetInt(IntroSeenKey, 1);
         SetStage(OpeningStage.LandlordLeaving);
-        StartCoroutine(Departure());
         return InteractionResult.Ok;
+    }
+
+    /// Before the commit: everything goes back (he still holds out the bill). After
+    /// it: the player keeps the bill and just gets their controls back.
+    public void CancelHandover()
+    {
+        if (_handover != null)
+            StopCoroutine(_handover);
+        _handover = null;
+        if (_handoverPlayer != null)
+        {
+            _handoverPlayer.Arms.ClearOverride(FirstPersonArms.Side.Right, 0.3f);
+            _handoverPlayer.Unlock();
+            _handoverPlayer = null;
+        }
+        if (!_handoverCommitted)
+        {
+            _handoverActor = null;
+            landlord.Perform(WorkerAvatar.Offer);
+        }
+        else if (Stage == OpeningStage.LandlordLeaving)
+            StartCoroutine(Departure());
+    }
+
+    /// A player left in the middle of taking the bill.
+    public void OnActorLeft(string actorId)
+    {
+        if (_handoverActor == actorId)
+            CancelHandover();
+    }
+
+    void OnDisable()
+    {
+        // Scene change or teardown mid-exchange: never leave a player locked.
+        if (_handoverPlayer != null)
+        {
+            _handoverPlayer.Unlock();
+            _handoverPlayer = null;
+        }
     }
 
     IEnumerator Departure()
@@ -192,12 +339,17 @@ public class OpeningDirector : MonoBehaviour
 
     /// Out the door to the first shift. Solo leaves at once; with a crew this
     /// becomes a ready-up at the door.
-    public void LeaveForWork()
+    public void LeaveForWork(IInteractionActor actor)
     {
-        if (Stage != OpeningStage.Hired)
+        if (Stage != OpeningStage.Hired || session.Travelling)
             return;
-        door.Open();
-        session.TravelTo(GameSession.WeddingScene, 1.2f);
+        StartCoroutine(LeaveRoutine(actor));
+    }
+
+    IEnumerator LeaveRoutine(IInteractionActor actor)
+    {
+        yield return OpenDoorByHand(actor);
+        session.TravelTo(GameSession.WeddingScene, 1.0f);
     }
 
     IEnumerator Say(string speaker, string line, float seconds)

@@ -227,6 +227,8 @@ public class ComputerScreen : MonoBehaviour
 
     IEnumerator Submit()
     {
+        _desk?.PressEnter();
+        yield return new WaitForSecondsRealtime(0.15f);
         _content.Clear();
         var sending = Hud.Text(_content, "Sending application", 26, Body);
         sending.style.unityFontStyleAndWeight = FontStyle.Bold;

@@ -56,7 +56,7 @@ public static class GameplaySceneSetup
         for (int i = 0; i < CakeLayers.Length; i++)
         {
             var layer = CakeLayers[i];
-            MakeProp(layer.id, "cake_tier", layer.name, layer.id, G(PrepTable.x + startX[i], PrepTop + 0.003f, PrepTable.z), Yaw(0f), 2f, gameplay);
+            MakeProp(layer.id, "cake_tier", layer.name, layer.id, G(PrepTable.x + startX[i], PrepTop + 0.003f, PrepTable.z), Yaw(0f), 2f, gameplay, PropCategory.Wide);
             MakeSocket(CakeSockets[i], i == 0 ? "the cake stand" : "the cake", "cake_tier", previous, layer.radius,
                 G(DessertStand.x, stackY, DessertStand.z), pad, ghost, gameplay);
             previous = CakeSockets[i];
@@ -106,7 +106,7 @@ public static class GameplaySceneSetup
 
     // Props and sockets -----------------------------------------------------------
 
-    public static PickupProp MakeProp(string id, string kind, string display, string model, Vector3 position, float yaw, float mass, Transform parent)
+    public static PickupProp MakeProp(string id, string kind, string display, string model, Vector3 position, float yaw, float mass, Transform parent, PropCategory category = PropCategory.Small)
     {
         var asset = AssetDatabase.LoadAssetAtPath<GameObject>(model.Contains("/") ? model : $"Assets/Art/Models/{model}.fbx");
         var go = (GameObject)PrefabUtility.InstantiatePrefab(asset, parent);
@@ -134,11 +134,12 @@ public static class GameplaySceneSetup
         }
         var box = go.AddComponent<BoxCollider>();
         box.center = bounds.center;
-        box.size = bounds.size;
+        // Never paper-thin: a 1.2 cm minimum keeps sheets from tunnelling or jittering.
+        box.size = Vector3.Max(bounds.size, Vector3.one * 0.012f);
         var body = go.AddComponent<Rigidbody>();
         body.mass = mass;
         var prop = go.AddComponent<PickupProp>();
-        prop.Configure(id, kind, display);
+        prop.Configure(id, kind, display, category);
         return prop;
     }
 
@@ -203,6 +204,14 @@ public static class GameplaySceneSetup
         }
         library.models = WorkerModels.Select(m => AssetDatabase.LoadAssetAtPath<GameObject>($"Assets/Art/Characters/{m}.fbx")).ToArray();
         library.controller = controller;
+        GameObject Part(string n) => AssetDatabase.LoadAssetAtPath<GameObject>($"Assets/Art/Hands/{n}.fbx");
+        library.armUpper = Part("arm_upper");
+        library.armForearm = Part("arm_forearm");
+        library.handPalm = Part("hand_palm");
+        library.fingerBase = Part("finger_base");
+        library.fingerTip = Part("finger_tip");
+        library.thumbBase = Part("thumb_base");
+        library.thumbTip = Part("thumb_tip");
         EditorUtility.SetDirty(library);
         AssetDatabase.SaveAssets();
         report.AppendLine($"workers: {library.models.Count(m => m != null)} models, controller states: {string.Join(", ", clips.Select(c => c.name))}");

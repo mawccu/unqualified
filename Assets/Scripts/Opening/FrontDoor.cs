@@ -29,6 +29,19 @@ public class FrontDoor : Interactable
     public void Open() => _target = OpenAngle;
     public void Close() => _target = 0f;
 
+    /// Where a right hand goes to work the handle (the room side of the leaf):
+    /// palm toward the door, fingers round the knob.
+    public Pose HandleGrip()
+    {
+        var leafPart = leaf.childCount > 0 ? leaf.GetChild(0) : leaf;
+        // The knob, in the leaf model's space (modelled at +X 0.8 in Blender, mirrored on import).
+        Vector3 knob = leafPart.TransformPoint(new Vector3(-0.8f, 1.0f, 0.06f));
+        Vector3 outward = leafPart.forward;           // the room side
+        Vector3 towardHinge = leafPart.right;         // -X is the free edge, so +X runs back to the hinge
+        Vector3 wrist = knob + outward * 0.05f - towardHinge * 0.075f - Vector3.up * 0.02f;
+        return new Pose(wrist, Quaternion.LookRotation(towardHinge, outward));
+    }
+
     static OpeningStage Stage => OpeningDirector.Instance != null ? OpeningDirector.Instance.Stage : OpeningStage.Waking;
 
     public override string Prompt(IInteractionActor actor) =>
@@ -50,6 +63,6 @@ public class FrontDoor : Interactable
         if (Stage == OpeningStage.Knocking)
             director.OnDoorAnswered(actor);
         else if (Stage == OpeningStage.Hired)
-            director.LeaveForWork();
+            director.LeaveForWork(actor);
     }
 }

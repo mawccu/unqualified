@@ -16,7 +16,7 @@ public static class MaterialLibrary
 {
     const string MaterialsFolder = "Assets/Art/Materials";
     const string TexturesFolder = "Assets/Art/Textures";
-    static readonly string[] ModelFolders = { "Assets/Art/Models", "Assets/Art/Characters", "Assets/Art/Apartment" };
+    static readonly string[] ModelFolders = { "Assets/Art/Models", "Assets/Art/Characters", "Assets/Art/Apartment", "Assets/Art/Hands" };
 
     /// Material name in the pack -> texture set, tiling (models have 1 UV unit = 1 metre),
     /// metallic, and how much of the set's own smoothness to keep (a waxed floor at
@@ -62,13 +62,14 @@ public static class MaterialLibrary
             var mat = AssetDatabase.LoadAssetAtPath<Material>(assetPath);
             if (mat == null)
             {
+                // New: take the model's colour. Existing shared materials keep theirs.
                 mat = new Material(lit) { name = pair.Key };
                 AssetDatabase.CreateAsset(mat, assetPath);
+                mat.SetColor("_BaseColor", pair.Value);
+                mat.SetFloat("_Metallic", 0f);
+                mat.SetFloat("_Smoothness", 0.3f);
             }
             mat.shader = lit;
-            mat.SetColor("_BaseColor", pair.Value);
-            mat.SetFloat("_Metallic", 0f);
-            mat.SetFloat("_Smoothness", 0.3f);
             if (Textured.TryGetValue(pair.Key, out var tex))
                 ApplyTextureSet(mat, tex.set, tex.tiling, tex.metallic, tex.gloss);
             EditorUtility.SetDirty(mat);

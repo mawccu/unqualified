@@ -18,3 +18,10 @@ MonoBehaviour:
   - {fileID: 919132149155446097, guid: 3017be3dfbf239a4f8cbc9879e82239f, type: 3}
   - {fileID: 919132149155446097, guid: 99522c5ff4ab39b4dbbd02e5eb9648fa, type: 3}
   controller: {fileID: 9100000, guid: 659f496de52296449b300755a3c1c109, type: 2}
+  armUpper: {fileID: 919132149155446097, guid: f1b4086f34e37694ca39156e301a67cf, type: 3}
+  armForearm: {fileID: 919132149155446097, guid: b18101d6b1f9c3f43bd74bf1b2723c5b, type: 3}
+  handPalm: {fileID: 919132149155446097, guid: 82a0a38a808ba194b894d2c419e610bb, type: 3}
+  fingerBase: {fileID: 919132149155446097, guid: b5d73d22e2139cc498470317c4d9dec8, type: 3}
+  fingerTip: {fileID: 919132149155446097, guid: 080dad11dae12c34ea2befff1dcbb267, type: 3}
+  thumbBase: {fileID: 919132149155446097, guid: 909df53bbf48cc240b077c7f52342cd6, type: 3}
+  thumbTip: {fileID: 919132149155446097, guid: 988bc919c95afe6409858f20f6233e05, type: 3}

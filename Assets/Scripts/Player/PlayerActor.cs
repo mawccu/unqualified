@@ -10,17 +10,21 @@ using UnityEngine.Rendering.Universal;
 /// between), so the view is as smooth as the screen allows.
 /// </summary>
 [RequireComponent(typeof(CharacterController))]
+[DefaultExecutionOrder(-50)]
 public class PlayerActor : MonoBehaviour, IInteractionActor
 {
     const float WalkSpeed = 4f;
     const float SprintSpeed = 6f;
+    const float CrouchSpeed = 2f;
+    const float StandHeight = 1.75f;
+    const float CrouchHeight = 1.15f;
+    const float CrouchEye = 1.0f;
+    const float StepLength = 0.72f;
     const float Acceleration = 12f;
     const float Gravity = 20f;
     public const float EyeHeight = 1.55f;
-    const float AimReach = 3.2f;
-    const float HoldDistance = 1.2f;
-    const float HoldMinDistance = 0.8f;
-    static readonly Vector2 HoldOffset = new(0.38f, -0.4f);
+    /// The crosshair looks this far; the hands only reach InteractionService.MaxReach.
+    const float AimReach = 2.6f;
     const float BaseLookDegreesPerPixel = 0.126f;
     const float MaxPitch = 83f;
 
@@ -41,6 +45,9 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
     public PickupProp HeldProp => _service?.GetProp(HeldPropId);
     public Camera Camera { get; private set; }
     public WorkerAvatar Avatar { get; private set; }
+    public FirstPersonArms Arms { get; private set; }
+    public Vector3 Velocity => _body != null ? _body.velocity : Vector3.zero;
+    public bool Crouching => _crouch > 0.5f;
 
     /// Set by the session: sends a request onward (applied here, or sent to the host).
     public Action<InteractionRequest> Submit;
@@ -67,8 +74,17 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
     string _lastHeld = "";
     Pose _camPose;
     float _camWeight, _camTarget, _camSpeed = 1f;
+    float _crouch;
+    bool _wantCrouch;
+    float _stepPhase;
+    int _lastStep;
+    bool _wasGrounded = true;
+    float _landDip, _landDipVelocity;
+    AudioSource _feet;
+    Vector3 _approachTarget;
+    float _approachLeft;
 
-    InputAction _move, _look, _sprint, _interact, _use, _drop;
+    InputAction _move, _look, _sprint, _interact, _use, _drop, _crouchKey;
 
     public void Setup(string actorId, int slot, InteractionService service, WorkerLibrary workers)
     {
@@ -103,12 +119,22 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
 
         HoldPoint = new GameObject("HoldPoint").transform;
         HoldPoint.SetParent(Camera.transform, false);
-        HoldPoint.localPosition = new Vector3(HoldOffset.x, HoldOffset.y, HoldDistance);
+        HoldPoint.localPosition = HoldOffsetFor(PropCategory.Small);
 
         // Everyone has a worker body. The local player does not see theirs (first
         // person) but it still throws a shadow on the floor.
         Avatar = WorkerAvatar.Create(workers, slot, WorkerCostumes.ForSlot(slot), transform);
         Avatar.SetShadowOnly(true);
+
+        // The arms you see: a separate first-person rig, in the same sleeves.
+        var arms = new GameObject("FirstPersonArms");
+        arms.transform.SetParent(transform, false);
+        Arms = arms.AddComponent<FirstPersonArms>();
+        Arms.Build(this, workers, WorkerCostumes.ForSlot(slot));
+
+        _feet = gameObject.AddComponent<AudioSource>();
+        _feet.spatialBlend = 0.6f;
+        _feet.playOnAwake = false;
 
         _spawnPosition = transform.position;
         _spawnRotation = transform.rotation;
@@ -136,14 +162,17 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
         _use.AddBinding("<Gamepad>/rightTrigger");
         _drop = new InputAction("drop", InputActionType.Button, "<Keyboard>/q");
         _drop.AddBinding("<Gamepad>/buttonEast");
-        foreach (var a in new[] { _move, _look, _sprint, _interact, _use, _drop })
+        _crouchKey = new InputAction("crouch", InputActionType.Button, "<Keyboard>/c");
+        _crouchKey.AddBinding("<Keyboard>/leftCtrl");
+        _crouchKey.AddBinding("<Gamepad>/rightStickPress");
+        foreach (var a in new[] { _move, _look, _sprint, _interact, _use, _drop, _crouchKey })
             a.Enable();
     }
 
     void OnDestroy()
     {
         GameSettings.Changed -= ApplySettings;
-        foreach (var a in new[] { _move, _look, _sprint, _interact, _use, _drop })
+        foreach (var a in new[] { _move, _look, _sprint, _interact, _use, _drop, _crouchKey })
             a?.Dispose();
     }
 
@@ -164,27 +193,116 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
         }
 
         Vector2 input = CanControl ? Vector2.ClampMagnitude(_move.ReadValue<Vector2>(), 1f) : Vector2.zero;
-        float speed = sprinting ? SprintSpeed : WalkSpeed;
+        _wantCrouch = CanControl && _crouchKey.IsPressed();
+        UpdateCrouch(dt);
+        var carried = HeldProp;
+        bool heavy = carried != null && carried.Category == PropCategory.Wide;
+        float speed = Crouching ? CrouchSpeed : sprinting ? SprintSpeed * (heavy ? 0.8f : 1f) : WalkSpeed;
+        if (Crouching)
+            sprinting = false;
         Vector3 wish = transform.TransformDirection(new Vector3(input.x, 0f, input.y)) * speed;
         float blend = 1f - Mathf.Exp(-Acceleration * dt);
         _velocity.x = Mathf.Lerp(_velocity.x, wish.x, blend);
         _velocity.z = Mathf.Lerp(_velocity.z, wish.z, blend);
         _velocity.y = _body.isGrounded ? -2f : _velocity.y - Gravity * dt;
+        if (_approachLeft > 0f)
+        {
+            // A scripted step in: walk (through the controller, so walls still count)
+            // toward the spot, arriving when the time is up.
+            Vector3 to = _approachTarget - transform.position;
+            to.y = 0f;
+            Vector3 step = to * Mathf.Min(1f, dt / _approachLeft);
+            _approachLeft -= dt;
+            _velocity.x = step.x / Mathf.Max(dt, 1e-4f);
+            _velocity.z = step.z / Mathf.Max(dt, 1e-4f);
+        }
         _body.Move(_velocity * dt);
+        UpdateSteps(dt);
 
         UpdateAim();
-        UpdateHoldDistance();
+        UpdateHold(dt);
         if (HeldPropId != _lastHeld)
         {
             _lastHeld = HeldPropId;
             var held = HeldProp;
-            Avatar.SetIdlePose(held != null && held.Kind == "rent_bill" ? WorkerAvatar.HoldPaper : null);
+            Avatar.SetIdlePose(held != null && held.Category == PropCategory.Paper ? WorkerAvatar.HoldPaper : null);
             HeldChanged?.Invoke(held);
         }
         Avatar.UpdateMotion(_body.velocity, sprinting, !string.IsNullOrEmpty(HeldPropId), dt);
     }
 
+    // Body: crouch, steps, camera bob --------------------------------------------
+
+    /// Crouch while held. Standing up waits until there is headroom.
+    void UpdateCrouch(float dt)
+    {
+        float target = _wantCrouch ? 1f : 0f;
+        if (target < _crouch && !HeadroomToStand())
+            target = _crouch;
+        _crouch = Mathf.MoveTowards(_crouch, target, dt * 4.5f);
+        float height = Mathf.Lerp(StandHeight, CrouchHeight, _crouch);
+        _body.height = height;
+        _body.center = new Vector3(0f, height * 0.5f, 0f);
+    }
+
+    bool HeadroomToStand()
+    {
+        float r = _body.radius * 0.95f;
+        Vector3 bottom = transform.position + Vector3.up * (r + 0.05f);
+        Vector3 top = transform.position + Vector3.up * (StandHeight - r);
+        return !Physics.CheckCapsule(bottom, top, r, (1 << GameLayers.World) | (1 << GameLayers.Prop), QueryTriggerInteraction.Ignore);
+    }
+
+    /// Footsteps from distance actually covered (a blocked player makes none),
+    /// a small bob in step with them, and a dip when landing from a drop.
+    void UpdateSteps(float dt)
+    {
+        var flat = new Vector3(_body.velocity.x, 0f, _body.velocity.z);
+        float speed = flat.magnitude;
+        bool grounded = _body.isGrounded;
+        if (grounded && speed > 0.4f)
+            _stepPhase += speed * dt * (Mathf.PI / StepLength);
+        int step = Mathf.FloorToInt(_stepPhase / Mathf.PI);
+        if (step != _lastStep)
+        {
+            _lastStep = step;
+            float volume = Crouching ? 0.1f : speed > 4.6f ? 0.42f : 0.26f;
+            _feet.pitch = UnityEngine.Random.Range(0.86f, 1.05f);
+            _feet.PlayOneShot(ProceduralAudio.Footstep, volume);
+        }
+        if (grounded && !_wasGrounded && _velocity.y < -3f)
+        {
+            _landDipVelocity -= 0.6f;
+            _feet.PlayOneShot(ProceduralAudio.Footstep, 0.4f);
+        }
+        _wasGrounded = grounded;
+        // A critically damped return from the landing dip.
+        _landDipVelocity += (-120f * _landDip - 22f * _landDipVelocity) * dt;
+        _landDip += _landDipVelocity * dt;
+
+        float walk = Mathf.Clamp01(speed / WalkSpeed);
+        float bob = Mathf.Sin(_stepPhase * 2f) * 0.009f * walk * GameSettings.CameraBob;
+        float eye = Mathf.Lerp(EyeHeight, CrouchEye, _crouch);
+        _head.localPosition = new Vector3(0f, eye + bob + _landDip * GameSettings.CameraBob, 0f);
+    }
+
     // Being driven ---------------------------------------------------------------
+
+    /// Step in so a point ends up a comfortable reach in front of the chest
+    /// (horizontally `reach` from the eye), taking `seconds`. Never steps back, never
+    /// more than `maxStep`. Returns the distance it will move.
+    public float ApproachForReach(Vector3 point, float reach = 0.42f, float seconds = 0.3f, float maxStep = 0.7f)
+    {
+        Vector3 flat = point - transform.position;
+        flat.y = 0f;
+        float distance = flat.magnitude;
+        float move = Mathf.Clamp(distance - reach, 0f, maxStep);
+        if (move < 0.02f)
+            return 0f;
+        _approachTarget = transform.position + flat / distance * move;
+        _approachLeft = Mathf.Max(seconds, 0.05f);
+        return move;
+    }
 
     public void Lock() => _locks++;
     public void Unlock() => _locks = Mathf.Max(0, _locks - 1);
@@ -302,6 +420,8 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
                 if (!string.IsNullOrEmpty(why))
                     prompt = $"<color=#FFFFFF99>{why}</color>";
             }
+            else if (result == InteractionResult.OutOfRange)
+                prompt = "<color=#FFFFFF99>Get closer</color>";
             if (!string.IsNullOrEmpty(HeldPropId))
                 prompt += (prompt.Length > 0 ? "\n" : "") + "<b>Q</b>  Drop";
         }
@@ -315,23 +435,52 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
             }
             prompt += "<b>Q</b>  Drop";
         }
-        else if (prop != null && _service.Validate(PickupRequest(prop)) == InteractionResult.Ok)
+        else if (prop != null)
         {
-            prompt = $"<b>E</b>  Pick up {prop.DisplayName}";
-            actionable = true;
+            var result = _service.Validate(PickupRequest(prop));
+            if (result == InteractionResult.Ok)
+            {
+                prompt = $"<b>E</b>  Pick up {prop.DisplayName}";
+                actionable = true;
+            }
+            else if (result == InteractionResult.OutOfRange)
+                prompt = "<color=#FFFFFF99>Get closer</color>";
         }
         SetPreview(preview);
         SetPrompt(prompt);
         SetAim(actionable);
     }
 
-    /// Pull a held prop in when something is close in front, so it never pokes through.
-    void UpdateHoldDistance()
+    /// Where a carried thing sits in front of you (its base; camera space). Paper is
+    /// held up to read, a small thing to the right, a wide thing low in both hands.
+    public static Vector3 HoldOffsetFor(PropCategory category) => category switch
     {
-        float distance = HoldDistance;
-        if (_aimHasHit && !_aimHit.collider.isTrigger)
-            distance = Mathf.Clamp(_aimHit.distance - 0.45f, HoldMinDistance, HoldDistance);
-        HoldPoint.localPosition = new Vector3(HoldOffset.x, HoldOffset.y, distance);
+        PropCategory.Paper => new Vector3(0f, -0.2f, 0.34f),
+        PropCategory.Wide => new Vector3(0f, -0.42f, 0.5f),
+        _ => new Vector3(0.17f, -0.36f, 0.44f),
+    };
+
+    /// Keeps the carried thing on this side of walls: sweep its box from the eye to
+    /// where it wants to be and pull it in (and lower) if something is in the way.
+    void UpdateHold(float dt)
+    {
+        var held = HeldProp;
+        Vector3 wanted = HoldOffsetFor(held != null ? held.Category : PropCategory.Small);
+        if (held != null)
+        {
+            var b = held.LocalBounds;
+            Vector3 origin = Camera.transform.position;
+            Vector3 centre = Camera.transform.TransformPoint(wanted + b.center);
+            Vector3 dir = centre - origin;
+            float dist = dir.magnitude;
+            if (dist > 1e-3f && Physics.BoxCast(origin, b.extents * 0.9f, dir / dist, out var hit, Camera.transform.rotation, dist,
+                    (1 << GameLayers.World) | (1 << GameLayers.Prop), QueryTriggerInteraction.Ignore))
+            {
+                float ratio = Mathf.Clamp(hit.distance / dist, 0.3f, 1f);
+                wanted = new Vector3(wanted.x * ratio, wanted.y - (1f - ratio) * 0.12f, wanted.z * ratio);
+            }
+        }
+        HoldPoint.localPosition = Vector3.Lerp(HoldPoint.localPosition, wanted, 1f - Mathf.Exp(-18f * dt));
     }
 
     void TryInteract()

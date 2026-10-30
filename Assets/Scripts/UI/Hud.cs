@@ -23,7 +23,7 @@ public class Hud : MonoBehaviour
     public event Action ResumeRequested, RestartRequested, NewGameRequested, QuitRequested;
 
     VisualElement _root, _crosshair, _ring, _card, _cardBody, _menu, _banner, _document, _fade, _subtitleBox, _overlay;
-    Label _prompt, _toast, _status, _stats, _sensitivityValue, _fovValue, _eyebrow, _title, _bannerTitle, _bannerText;
+    Label _prompt, _toast, _status, _stats, _sensitivityValue, _fovValue, _bobValue, _eyebrow, _title, _bannerTitle, _bannerText;
     Label _subtitleSpeaker, _subtitleText, _skipHint, _help, _documentText;
     float _toastLeft, _subtitleLeft;
     float _statsTimer;
@@ -368,7 +368,7 @@ public class Hud : MonoBehaviour
 
     void BuildHelp()
     {
-        _help = Text(_root, "WASD move    Mouse look    Shift sprint    E use / pick up    Click place    Q drop    Esc menu    F3 frame rate    F5 restart", 13, new Color(1f, 1f, 1f, 0.45f));
+        _help = Text(_root, "WASD move    Mouse look    Shift sprint    C crouch    E use / pick up    Click place    Q drop    Esc menu    F3 frame rate    F5 restart", 13, new Color(1f, 1f, 1f, 0.45f));
         _help.style.position = Position.Absolute;
         _help.style.bottom = 30;
         _help.style.right = 28;
@@ -475,6 +475,7 @@ public class Hud : MonoBehaviour
         MenuButton(card, "New game (back to the apartment)", false, () => NewGameRequested?.Invoke());
         _sensitivityValue = Stepper(card, "Mouse sensitivity", () => GameSettings.MouseSensitivity -= 0.1f, () => GameSettings.MouseSensitivity += 0.1f);
         _fovValue = Stepper(card, "Field of view", () => GameSettings.HorizontalFov -= 5f, () => GameSettings.HorizontalFov += 5f);
+        _bobValue = Stepper(card, "Camera bob", () => GameSettings.CameraBob -= 0.25f, () => GameSettings.CameraBob += 0.25f);
         MenuButton(card, "Quit", false, () => QuitRequested?.Invoke());
         GameSettings.Changed += RefreshSettingValues;
         _menu.style.display = DisplayStyle.None;
@@ -488,6 +489,7 @@ public class Hud : MonoBehaviour
             return;
         _sensitivityValue.text = GameSettings.MouseSensitivity.ToString("0.0");
         _fovValue.text = $"{GameSettings.HorizontalFov:0}°";
+        _bobValue.text = GameSettings.CameraBob <= 0f ? "Off" : $"{GameSettings.CameraBob * 100f:0}%";
     }
 
     // Small building blocks (shared with the computer screen) ---------------------------------

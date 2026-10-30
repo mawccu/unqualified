@@ -27,6 +27,18 @@ switch (cmd) {
     if (match == null) { outcome = "no button '" + arg + "' among: " + string.Join(" | ", buttons.ConvertAll(b => b.text)); break; }
     using (var ev = UnityEngine.UIElements.NavigationSubmitEvent.GetPooled()) { ev.target = match; match.SendEvent(ev); }
     outcome = "clicked"; break; }
+  case "pickup": {
+    var prop = s.Service.GetProp(arg);
+    var req = new InteractionRequest { RequestId = 992, ActorId = p.ActorId, Action = InteractionAction.Pickup, TargetId = arg, ExpectedRevision = prop.Revision };
+    outcome = s.Service.Validate(req).ToString(); s.Submit(req); break; }
+  case "place": {
+    var req = new InteractionRequest { RequestId = 993, ActorId = p.ActorId, Action = InteractionAction.Place, TargetId = arg, ExpectedRevision = -1 };
+    outcome = s.Service.Validate(req).ToString(); s.Submit(req); break; }
+  case "drop": {
+    var req = new InteractionRequest { RequestId = 994, ActorId = p.ActorId, Action = InteractionAction.Drop, TargetId = "", ExpectedRevision = -1 };
+    outcome = s.Service.Validate(req).ToString(); s.Submit(req); break; }
+  case "timescale": UnityEngine.Time.timeScale = float.Parse(arg); outcome = "timescale " + arg; break;
+  case "body": p.Avatar.SetShadowOnly(arg == "hide"); outcome = "body " + arg; break;
   case "type": {
     var field = UnityEngine.UIElements.UQueryExtensions.Q<UnityEngine.UIElements.TextField>(root);
     if (field == null) { outcome = "no text field"; break; }

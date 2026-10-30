@@ -16,6 +16,24 @@ public static class GameSettings
 
     static float _fov = -1f;
     static float _sensitivity = -1f;
+    static float _bob = -1f;
+
+    /// Walking bob and landing dip strength, 0 (off) to 1.
+    public static float CameraBob
+    {
+        get
+        {
+            if (_bob < 0f)
+                _bob = PlayerPrefs.GetFloat("camera_bob", 1f);
+            return _bob;
+        }
+        set
+        {
+            _bob = Mathf.Clamp01(value);
+            PlayerPrefs.SetFloat("camera_bob", _bob);
+            Changed?.Invoke();
+        }
+    }
 
     public static float HorizontalFov
     {

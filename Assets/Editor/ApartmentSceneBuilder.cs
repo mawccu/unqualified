@@ -238,9 +238,9 @@ public static class ApartmentSceneBuilder
 
         // Clutter anyone can pick up and throw about.
         var clutter = Group("Clutter", f);
-        GameplaySceneSetup.MakeProp("envelope_1", "clutter", "an unpaid bill", P("envelope"), new Vector3(1.6f, 0.01f, -2.55f), 20f, 0.1f, clutter);
-        GameplaySceneSetup.MakeProp("envelope_2", "clutter", "a final final notice", P("envelope"), new Vector3(2.35f, 0.01f, -2.35f), -35f, 0.1f, clutter);
-        GameplaySceneSetup.MakeProp("envelope_3", "clutter", "a letter for \"The Occupant\"", P("envelope"), new Vector3(2.0f, 0.01f, -2.75f), 80f, 0.1f, clutter);
+        GameplaySceneSetup.MakeProp("envelope_1", "clutter", "an unpaid bill", P("envelope"), new Vector3(1.6f, 0.01f, -2.55f), 20f, 0.1f, clutter, PropCategory.Paper);
+        GameplaySceneSetup.MakeProp("envelope_2", "clutter", "a final final notice", P("envelope"), new Vector3(2.35f, 0.01f, -2.35f), -35f, 0.1f, clutter, PropCategory.Paper);
+        GameplaySceneSetup.MakeProp("envelope_3", "clutter", "a letter for \"The Occupant\"", P("envelope"), new Vector3(2.0f, 0.01f, -2.75f), 80f, 0.1f, clutter, PropCategory.Paper);
         GameplaySceneSetup.MakeProp("takeout_1", "clutter", "a takeout box (old)", P("takeout_box"), new Vector3(-2.15f, 0.52f, -1.38f), 30f, 0.3f, clutter);
         GameplaySceneSetup.MakeProp("takeout_2", "clutter", "a takeout box (older)", P("takeout_box"), new Vector3(-0.9f, 0.01f, -1.9f), -60f, 0.3f, clutter);
         GameplaySceneSetup.MakeProp("takeout_3", "clutter", "a takeout box (do not open)", P("takeout_box"), new Vector3(2.9f, 0.92f, 2.5f), 10f, 0.3f, clutter);
@@ -318,7 +318,15 @@ public static class ApartmentSceneBuilder
         landlord.Configure(library, knock, doorway, exit, audio);
 
         // The bill (in the landlord's hand from the start) and its spot on the desk.
-        var bill = GameplaySceneSetup.MakeProp("rent_bill", "rent_bill", "the rent bill", P("rent_bill"), new Vector3(DoorX, 1f, -3.6f), 0f, 0.05f, story);
+        var bill = GameplaySceneSetup.MakeProp("rent_bill", "rent_bill", "the rent bill", P("bill_sheet"), new Vector3(DoorX, 1f, -3.6f), 0f, 0.05f, story, PropCategory.Paper);
+        var print = AssetDatabase.LoadAssetAtPath<Material>("Assets/Art/Materials/Bill print.mat");
+        if (print != null)
+        {
+            print.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Art/Apartment/bill_print.png"));
+            print.SetColor("_BaseColor", Color.white);
+            print.SetFloat("_Smoothness", 0.1f);
+            EditorUtility.SetDirty(print);
+        }
 
         // The desk corner.
         var deskGo = new GameObject("ComputerDesk");
@@ -326,7 +334,7 @@ public static class ApartmentSceneBuilder
         deskGo.transform.position = new Vector3(3.6f, 0f, -0.6f);
         Place(P("desk"), new Vector3(3.6f, 0f, -0.6f), -90f, deskGo.transform, false);
         Place(P("computer_monitor"), new Vector3(3.72f, 0.75f, -0.62f), -90f, deskGo.transform, false);
-        Place(P("computer_keyboard"), new Vector3(3.42f, 0.75f, -0.62f), -90f, deskGo.transform, false);
+        var keyboard = Place(P("computer_keyboard"), new Vector3(3.42f, 0.75f, -0.62f), -90f, deskGo.transform, false);
         Place(P("computer_tower"), new Vector3(3.62f, 0f, -1.12f), -90f, deskGo.transform, false);
         Place(P("desk_chair"), new Vector3(2.95f, 0f, -0.62f), 90f, story, false);
         // The desktop, and the monitor above it (the bill spot stays free to aim at).
@@ -361,7 +369,7 @@ public static class ApartmentSceneBuilder
         screen.Configure(hud);
         var desk = deskGo.AddComponent<ComputerDesk>();
         desk.SetEntityId("computer_desk");
-        desk.Configure(seat, view, screen);
+        desk.Configure(seat, view, screen, keyboard.transform);
 
         var sessionGo = new GameObject("Session");
         sessionGo.transform.SetParent(story, false);
