@@ -66,8 +66,13 @@ public class PlacementSocket : MonoBehaviour
         OccupantId = prop != null ? prop.EntityId : "";
     }
 
+    /// Within this of the centre a lined-up spot counts as perfect and the thing
+    /// settles into the middle (a few centimetres: careful, not superhuman).
+    public float PerfectRadius => Mathf.Max(0.035f, alignTolerance * 0.22f);
+
     /// Where a prop lands if placed now: lined-up spots keep the prop's own
-    /// horizontal offset (within the tolerance); others take the centre.
+    /// horizontal offset (within the tolerance), except close to the centre,
+    /// where it settles into place; others take the centre.
     public Vector3 LandingFor(PickupProp prop, out float quality)
     {
         quality = 1f;
@@ -76,7 +81,10 @@ public class PlacementSocket : MonoBehaviour
         Vector3 offset = prop.Centre - transform.position;
         offset.y = 0f;
         float distance = offset.magnitude;
-        quality = Mathf.Clamp01(1f - distance / alignTolerance);
+        float perfect = PerfectRadius;
+        if (distance <= perfect)
+            return SnapPosition;
+        quality = Mathf.Clamp01(1f - (distance - perfect) / (alignTolerance - perfect));
         return SnapPosition + Vector3.ClampMagnitude(offset, alignTolerance);
     }
 
@@ -104,6 +112,7 @@ public class PlacementSocket : MonoBehaviour
             _ghost.transform.position = LandingFor(_ghostSource, out float quality) - transform.position + transform.position;
             _ghost.transform.position = LandingFor(_ghostSource, out quality);
             var colour = !IsLinedUp(_ghostSource) ? new Color(1f, 0.3f, 0.25f, 0.4f)
+                : quality >= 1f ? new Color(0.55f, 0.95f, 1f, 0.55f)
                 : quality > 0.7f ? new Color(0.4f, 1f, 0.6f, 0.4f)
                 : quality > 0.4f ? new Color(1f, 0.85f, 0.3f, 0.4f) : new Color(1f, 0.55f, 0.25f, 0.4f);
             _ghostBlock ??= new MaterialPropertyBlock();

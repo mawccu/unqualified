@@ -61,6 +61,7 @@ public class Coworker : MonoBehaviour
         {
             _body.SetPositionAndRotation(breakSpot.position, breakSpot.rotation);
             Avatar?.SetIdlePose(WorkerAvatar.HoldPaper);
+            Avatar?.SitOn(0f);
         }
         else
             SitAtDesk();
@@ -71,6 +72,7 @@ public class Coworker : MonoBehaviour
     {
         _body.SetPositionAndRotation(_desk.Seat.position - Vector3.up * 0.05f, _desk.Seat.rotation);
         Avatar?.SetIdlePose(WorkerAvatar.SitType);
+        Avatar?.SitOn(WorkerAvatar.DeskChairSeat);
     }
 
     void Update()
@@ -108,10 +110,8 @@ public class Coworker : MonoBehaviour
                     continue;
                 Shift.Do(workerId, "answer");
                 _desk.Phone.PickUp(Ear);
-                Avatar?.SetIdlePose(WorkerAvatar.Talk);
                 yield return Handle(call);
                 _desk.Phone.HangUp();
-                Avatar?.SetIdlePose(WorkerAvatar.SitType);
                 // Wrap-up: notes, a sip of coffee.
                 Shift.Router.SetBreak(workerId, true);
                 yield return new WaitForSeconds(Random.Range(6f, 10f));
@@ -142,7 +142,6 @@ public class Coworker : MonoBehaviour
             {
                 // "You speak Spanish, right?" across the office, then the transfer.
                 yield return Step(call, "ask_order", pause: 2.5f);
-                Avatar?.Perform(WorkerAvatar.Point);
                 string to = best.Id == Shift.PlayerId ? "you" : best.Name;
                 GameSession.Instance.Hud.ShowSubtitle(displayName, best.Id == Shift.PlayerId
                     ? $"Hey, you speak {CallLanguage.Name(call.Language)}, right? Sending this one over. Order number's in the notes."

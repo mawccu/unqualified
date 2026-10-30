@@ -113,10 +113,20 @@ public class DeskPhone : MonoBehaviour
     }
 
     /// Someone picks the handset up; it follows the pose they hold it at.
-    public void PickUp(Func<Pose> holder) => _holder = holder;
+    public void PickUp(Func<Pose> holder)
+    {
+        if (_holder == null)
+            _ring.PlayOneShot(ProceduralAudio.Clunk, 0.6f);
+        _holder = holder;
+    }
 
     /// Back in the cradle.
-    public void HangUp() => _holder = null;
+    public void HangUp()
+    {
+        if (_holder != null)
+            _ring.PlayOneShot(ProceduralAudio.Clunk, 0.8f);
+        _holder = null;
+    }
 
     public void Press(int button)
     {

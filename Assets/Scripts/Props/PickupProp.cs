@@ -320,10 +320,14 @@ public class PickupProp : MonoBehaviour
         SetPhysical(false, false);
         StartBlend(GrabSeconds);
         Revision++;
+        _audio.pitch = UnityEngine.Random.Range(0.9f, 1.1f);
+        _audio.PlayOneShot(ProceduralAudio.Pickup, 0.6f);
     }
 
     public void PlaceAt(Vector3 position, Quaternion rotation, string socket)
     {
+        _audio.pitch = (Category == PropCategory.Paper ? 1.6f : Category == PropCategory.Wide ? 0.8f : 1f) * UnityEngine.Random.Range(0.94f, 1.06f);
+        _audio.PlayOneShot(ProceduralAudio.SetDown, Category == PropCategory.Paper ? 0.25f : 0.7f);
         _holdTarget = null;
         _npcPose = null;
         HolderId = "";

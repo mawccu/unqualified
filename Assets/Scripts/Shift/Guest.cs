@@ -190,6 +190,7 @@ public class Guest : Interactable
         _walker.Agent.enabled = false;
         transform.SetPositionAndRotation(seat, Quaternion.LookRotation(Table.transform.position - seat - Vector3.up * (Table.transform.position.y - seat.y)));
         _avatar.Perform(WorkerAvatar.SitType);
+        _avatar.SitOn(WorkerAvatar.GuestChairSeat + Chair.transform.position.y - seat.y);
         State = Mode.Seated;
         string problem = Seating.Judge(this);
         if (problem == null)
@@ -213,6 +214,7 @@ public class Guest : Interactable
 
     void StandUp()
     {
+        _avatar.SitOn(0f);
         _walker.Agent.enabled = true;
         _walker.Warp(transform.position - transform.forward * 0.6f, transform.rotation);
         _walker.Performing = false;

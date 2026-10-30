@@ -1,1 +1,1 @@
-delivery_kettle en
+setup_plug en

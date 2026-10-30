@@ -34,6 +34,8 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
     public const float EyeHeight = 1.55f;
     /// The crosshair looks this far; the hands only reach InteractionService.MaxReach.
     const float AimReach = 2.6f;
+    /// How far from the chest a wide thing can be held out over a spot.
+    const float WideReach = 1.0f;
     const float BaseLookDegreesPerPixel = 0.126f;
     const float MaxPitch = 83f;
 
@@ -613,6 +615,12 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
             if (placeResult == InteractionResult.Ok)
             {
                 prompt = $"<b>Click</b>  Place on {socket.DisplayName}\n";
+                if (socket.AlignTolerance > 0f && heldNow != null)
+                {
+                    socket.LandingFor(heldNow, out float lineUp);
+                    prompt = $"<b>Click</b>  Place on {socket.DisplayName}   " +
+                        (lineUp >= 1f ? "<color=#8CF2FF><b>PERFECT</b></color>" : $"<color=#FFD966>line-up {lineUp * 100f:0}%</color>") + "\n";
+                }
                 preview = socket;
                 actionable = true;
             }
@@ -694,9 +702,13 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
                 Vector3 spot = target.transform.position;
                 Vector3 onRay = eye + dir * Mathf.Max(0.2f, Vector3.Dot(spot - eye, dir));
                 onRay.y = spot.y;
-                Vector3 local = Camera.transform.InverseTransformPoint(onRay);
-                // Arm's length from the chest, no further.
-                local = Vector3.ClampMagnitude(local - new Vector3(0f, -0.25f, 0f), 0.85f) + new Vector3(0f, -0.25f, 0f);
+                // Carry it by its middle, not by where the hands hold it, so aiming at
+                // the centre of the spot puts the centre of the layer there.
+                Vector3 gripToCentre = held.Centre - HoldPoint.position;
+                gripToCentre.y = 0f;
+                Vector3 local = Camera.transform.InverseTransformPoint(onRay - gripToCentre);
+                // Arm's length from the chest (leaning in a little), no further.
+                local = Vector3.ClampMagnitude(local - new Vector3(0f, -0.25f, 0f), WideReach) + new Vector3(0f, -0.25f, 0f);
                 HoldPoint.localPosition = Vector3.Lerp(HoldPoint.localPosition, local, 1f - Mathf.Exp(-10f * dt));
                 return;
             }

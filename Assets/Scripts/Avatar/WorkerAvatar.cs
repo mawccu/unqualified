@@ -158,6 +158,17 @@ public class WorkerAvatar : MonoBehaviour
     /// bill, typing at the desk). Null goes back to normal.
     public void SetIdlePose(string state) => _idlePose = state;
 
+    /// The sitting clip has the hips 0.24 m above the feet with the thighs level,
+    /// as if on a 0.17 m stool. Real seats are higher.
+    public const float SitClipSeat = 0.17f;
+    /// Seat heights (from the floor) of the chairs people sit on.
+    public const float GuestChairSeat = 0.46f, DeskChairSeat = 0.5f, CouchSeat = 0.52f;
+
+    /// Lifts the body so the sitting pose rests on a seat this high above the
+    /// character's origin (0 puts it back on its feet).
+    public void SitOn(float seatHeight) =>
+        transform.localPosition = new Vector3(0f, seatHeight > 0f ? seatHeight - SitClipSeat : 0f, 0f);
+
     /// Plays a state directly, for performances (the landlord, the coordinator).
     /// Callers that do this should not also call UpdateMotion that frame.
     public void Perform(string state, float fade = FadeLocomotion)

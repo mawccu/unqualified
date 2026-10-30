@@ -141,6 +141,7 @@ public class CallCenterShift : MonoBehaviour
 
     void Start()
     {
+        ProceduralAudio.Ambience(gameObject, ProceduralAudio.RoomTone, 0.3f);
         session.Hud.SetHelp("WASD move    E use    Sit at your desk to take calls    Esc stand up / menu");
         StartCoroutine(Briefing());
     }

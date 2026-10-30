@@ -8,10 +8,16 @@ using UnityEngine;
 public class Seat : Interactable
 {
     [SerializeField] Transform sitPoint;
+    [SerializeField] float seatHeight = WorkerAvatar.GuestChairSeat;
     PlayerActor _sitter;
     Collider[] _bodies;
 
-    public void Configure(Transform point) => sitPoint = point;
+    /// height: the seat's top above the floor under the sit point.
+    public void Configure(Transform point, float height = WorkerAvatar.GuestChairSeat)
+    {
+        sitPoint = point;
+        seatHeight = height;
+    }
 
     void Awake() => _bodies = GetComponentsInChildren<Collider>();
 
@@ -41,6 +47,7 @@ public class Seat : Interactable
         player.SetLook(sitPoint.eulerAngles.y, 0f);
         player.SetCameraOverride(new Pose(sitPoint.position + Vector3.up * 1.05f, sitPoint.rotation), 0.45f);
         player.Avatar.SetIdlePose(WorkerAvatar.SitType);
+        player.Avatar.SitOn(seatHeight - (sitPoint.position.y - transform.position.y));
         player.SeatedOn = this;
     }
 
@@ -54,6 +61,7 @@ public class Seat : Interactable
         player.SeatedOn = null;
         player.ClearCameraOverride(0.35f);
         player.Avatar.SetIdlePose(null);
+        player.Avatar.SitOn(0f);
         player.Teleport(sitPoint.position + sitPoint.forward * 0.55f);
         foreach (var c in _bodies)
             c.enabled = true;

@@ -51,11 +51,37 @@ public class Spill : Interactable
     public override string BlockedReason(IInteractionActor actor) => Clean ? "" : $"{Capital(What)}. A mop or a cloth would sort it.";
 
     /// How far along a clean-up is (0..1), for the look while someone works on it.
-    public void ShowProgress(float t) => transform.localScale = Vector3.Lerp(_scale, _scale * 0.35f, t);
+    public void ShowProgress(float t)
+    {
+        transform.localScale = Vector3.Lerp(_scale, _scale * 0.35f, t);
+        // The sound of scrubbing while someone works on it.
+        _scrub ??= MakeScrub();
+        if (t > 0.01f && !_scrub.isPlaying)
+            _scrub.Play();
+        else if (t <= 0.01f && _scrub.isPlaying)
+            _scrub.Stop();
+    }
+
+    AudioSource _scrub;
+
+    AudioSource MakeScrub()
+    {
+        var go = new GameObject("Scrub");
+        go.transform.position = transform.position;
+        var source = go.AddComponent<AudioSource>();
+        source.clip = ProceduralAudio.Swish;
+        source.loop = true;
+        source.spatialBlend = 1f;
+        source.maxDistance = 10f;
+        source.volume = 0.8f;
+        return source;
+    }
 
     public override void Use(IInteractionActor actor)
     {
         Clean = true;
+        if (_scrub != null)
+            Destroy(_scrub.gameObject);
         gameObject.SetActive(false);
     }
 

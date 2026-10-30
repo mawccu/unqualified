@@ -26,8 +26,31 @@ public class FrontDoor : Interactable
         leaf.localRotation = _closed * Quaternion.Euler(0f, _angle, 0f);
     }
 
-    public void Open() => _target = OpenAngle;
-    public void Close() => _target = 0f;
+    public void Open()
+    {
+        if (_target != OpenAngle)
+            Sound(ProceduralAudio.Creak, 0.7f);
+        _target = OpenAngle;
+    }
+
+    public void Close()
+    {
+        if (_target != 0f)
+        {
+            Sound(ProceduralAudio.Creak, 0.5f);
+            Invoke(nameof(Shut), 0.45f);
+        }
+        _target = 0f;
+    }
+
+    void Shut() => Sound(ProceduralAudio.Latch, 0.9f);
+
+    void Sound(AudioClip clip, float volume)
+    {
+        var source = GetComponent<AudioSource>();
+        if (source != null)
+            source.PlayOneShot(clip, volume);
+    }
 
     /// Where a right hand goes to work the handle (the room side of the leaf):
     /// palm toward the door, fingers round the knob.
@@ -45,7 +68,7 @@ public class FrontDoor : Interactable
     static OpeningStage Stage => OpeningDirector.Instance != null ? OpeningDirector.Instance.Stage : OpeningStage.Waking;
 
     public override string Prompt(IInteractionActor actor) =>
-        Stage == OpeningStage.Hired ? "Leave for the wedding shift" : "Answer the door";
+        Stage == OpeningStage.Hired ? $"Leave for your shift ({Jobs.Title(CrewState.Current.Job)})" : "Answer the door";
 
     public override InteractionResult CanUse(IInteractionActor actor) =>
         Stage == OpeningStage.Knocking || Stage == OpeningStage.Hired ? InteractionResult.Ok : InteractionResult.NotNow;

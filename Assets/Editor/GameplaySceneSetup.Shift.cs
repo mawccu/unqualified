@@ -100,7 +100,7 @@ public static partial class GameplaySceneSetup
         Usable<PedalBin>(kitchenBin, "bin_kitchen").Configure(kitchenLid.transform);
         // The break corner: a tired couch to sit on.
         var couch = StaticModel(A("couch"), new Vector3(-4.5f, 0f, -13.45f), 0f, rooms);
-        Usable<Seat>(couch, "couch").Configure(Spot("CouchSeat", new Vector3(-4.5f, 0.05f, -13.3f), 0f, couch.transform));
+        Usable<Seat>(couch, "couch").Configure(Spot("CouchSeat", new Vector3(-4.5f, 0.05f, -13.3f), 0f, couch.transform), WorkerAvatar.CouchSeat);
 
         // --- Storage (x 0..7, z -13..-8) ---
         for (int i = 0; i < 3; i++)

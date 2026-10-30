@@ -182,9 +182,27 @@ public class WeddingShift : MonoBehaviour
 
     // Every frame ------------------------------------------------------------------------
 
+    AudioSource _crowd;
+
+    /// The room fills up: a murmur that grows as guests are seated, quiet for the vows.
+    void UpdateCrowd(float dt)
+    {
+        _crowd ??= ProceduralAudio.Ambience(gameObject, ProceduralAudio.Crowd, 0f);
+        float seated = _guests.Count == 0 ? 0f : _guests.Count(g => g.State == Guest.Mode.Seated) / (float)_guests.Count;
+        float target = Current switch
+        {
+            Phase.Guests => 0.08f + 0.22f * seated,
+            Phase.Ceremony => 0.05f,
+            Phase.Inspection => 0.3f,
+            _ => 0f,
+        };
+        _crowd.volume = Mathf.MoveTowards(_crowd.volume, target, dt * 0.15f);
+    }
+
     void Update()
     {
         float dt = Time.deltaTime;
+        UpdateCrowd(dt);
         _phaseTime += dt;
         switch (Current)
         {

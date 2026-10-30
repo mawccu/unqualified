@@ -103,11 +103,37 @@ public class NpcWalker : MonoBehaviour
             transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(flat), Mathf.Min(1f, turnSpeed * Time.deltaTime));
     }
 
+    AudioSource _feet;
+    float _stride;
+
+    /// Footsteps in time with the walk (about one step every 0.65 m).
+    void Steps(float dt)
+    {
+        float speed = Agent.enabled ? Agent.velocity.magnitude : 0f;
+        if (speed < 0.2f || Performing)
+            return;
+        _stride += speed * dt;
+        if (_stride < 0.65f)
+            return;
+        _stride = 0f;
+        if (_feet == null)
+        {
+            _feet = gameObject.AddComponent<AudioSource>();
+            _feet.spatialBlend = 1f;
+            _feet.minDistance = 1f;
+            _feet.maxDistance = 12f;
+            _feet.playOnAwake = false;
+        }
+        _feet.pitch = UnityEngine.Random.Range(0.85f, 1.05f);
+        _feet.PlayOneShot(ProceduralAudio.Footstep, 0.45f);
+    }
+
     void Update()
     {
         float dt = Time.deltaTime;
         if (Avatar != null && !Performing)
             Avatar.UpdateMotion(Agent.velocity, false, false, dt);
+        Steps(dt);
         if (!HasDestination || Arrived)
         {
             _blocked = 0f;

@@ -343,9 +343,10 @@ public static partial class VenueSceneBuilder
             col.center = new Vector3(0f, 0.45f, 0f);
         }
         // (The clipboard's old spot on the sign table now holds the cake topper.)
-        for (int i = 0; i < 6; i++)
+        // Along the back wall, clear of the doorways to the kitchen (x -8..-6) and storage (x 2..4).
+        foreach (float x in new[] { -12.6f, -11.3f, -10.0f, -4.6f, 5.6f, 6.9f })
         {
-            var shelf = Place("storage_shelf", G(-12.6f + i * 1.3f, 0f, SouthZ - 0.4f), Yaw(180f), area);
+            var shelf = Place("storage_shelf", G(x, 0f, SouthZ - 0.4f), Yaw(180f), area);
             var col = shelf.AddComponent<BoxCollider>();
             col.size = new Vector3(1.2f, 1.73f, 0.51f);
             col.center = new Vector3(0f, 0.86f, 0f);
@@ -353,9 +354,9 @@ public static partial class VenueSceneBuilder
         for (int i = 0; i < 3; i++)
             Place("storage_crate", G(-11.4f + i * 0.7f, 0f, 5.2f), Yaw(i * 11f), area).AddComponent<BoxCollider>().center = new Vector3(0f, 0.23f, 0f);
         Place("storage_crate", G(-11f, 0.46f, 5.2f), Yaw(6f), area);
+        // (The mop and cloth you can use live in the storage room and the kitchen;
+        // decorative ones here only confused people.)
         Place("mop_bucket", G(9.5f, 0f, SouthZ - 0.6f), 0f, area);
-        Place("mop", G(10.2f, 0f, SouthZ - 0.6f), Yaw(11f), area);
-        Place("cleaning_cloth", G(8.6f, 0f, SouthZ - 0.6f), Yaw(29f), area);
         for (int i = 0; i < 2; i++)
             Place("storage_crate", G(12.2f, i * 0.46f, 5f), Yaw(i * 9f), area);
     }

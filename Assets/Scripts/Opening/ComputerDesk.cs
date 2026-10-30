@@ -54,9 +54,20 @@ public class ComputerDesk : Interactable
             Tap(_nextHand++ % 2);
     }
 
+    AudioSource _keys;
+
     void Tap(int hand)
     {
         _tap[hand] = 1f;
+        if (_keys == null)
+        {
+            _keys = keyboard.gameObject.AddComponent<AudioSource>();
+            _keys.spatialBlend = 1f;
+            _keys.maxDistance = 6f;
+            _keys.playOnAwake = false;
+        }
+        _keys.pitch = Random.Range(0.85f, 1.2f);
+        _keys.PlayOneShot(ProceduralAudio.Key, 0.6f);
         if (_local != null)
             StartCoroutine(TapGrip(_local, hand == 0 ? FirstPersonArms.Side.Right : FirstPersonArms.Side.Left));
     }
@@ -115,6 +126,7 @@ public class ComputerDesk : Interactable
         player.Teleport(seat.position);
         player.SetLook(seat.eulerAngles.y, 12f);
         player.Avatar.SetIdlePose(WorkerAvatar.SitType);
+        player.Avatar.SitOn(WorkerAvatar.DeskChairSeat - seat.position.y);
         player.SetCameraOverride(new Pose(screenView.position, screenView.rotation), 0.7f);
         player.Arms.SetOverride(FirstPersonArms.Side.Right, () => KeyboardHand(1f, 0), Grip.Keyboard, 0.6f);
         player.Arms.SetOverride(FirstPersonArms.Side.Left, () => KeyboardHand(-1f, 1), Grip.Keyboard, 0.7f);
@@ -151,6 +163,7 @@ public class ComputerDesk : Interactable
         player.WantsCursor = false;
         player.EscapeHandler = null;
         player.Avatar.SetIdlePose(null);
+        player.Avatar.SitOn(0f);
         player.Unlock();
         GameSession.Instance.Hud.SetCrosshairVisible(true);
         GameSession.Instance.RefreshCursor();
