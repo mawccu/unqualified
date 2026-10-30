@@ -1,0 +1,162 @@
+class_name Hud
+extends CanvasLayer
+## Crosshair, interaction prompt, short messages and the pause menu. It keeps
+## running while the tree is paused so the menu and Esc stay responsive.
+
+signal pause_toggled
+signal resume_requested
+signal restart_requested
+signal quit_requested
+
+const TOAST_SECONDS: float = 2.0
+
+var _prompt: Label
+var _toast: Label
+var _menu: Control
+var _resume_button: Button
+var _toast_left: float = 0.0
+
+
+func _init() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	layer = 10
+
+
+func _ready() -> void:
+	_build_crosshair()
+	_build_labels()
+	_build_menu()
+
+
+func _input(event: InputEvent) -> void:
+	if event.is_action_pressed(&"pause"):
+		pause_toggled.emit()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed(&"restart"):
+		restart_requested.emit()
+		get_viewport().set_input_as_handled()
+
+
+func _process(delta: float) -> void:
+	if _toast_left > 0.0:
+		_toast_left -= delta
+		if _toast_left <= 0.0:
+			_toast.text = ""
+
+
+func set_prompt(text: String) -> void:
+	_prompt.text = text
+
+
+func show_toast(text: String) -> void:
+	_toast.text = text
+	_toast_left = TOAST_SECONDS
+
+
+func set_menu_visible(visible_now: bool) -> void:
+	_menu.visible = visible_now
+	if visible_now:
+		_resume_button.grab_focus()
+
+
+func _build_crosshair() -> void:
+	var dot := ColorRect.new()
+	dot.color = Color(1.0, 1.0, 1.0, 0.85)
+	dot.size = Vector2(6.0, 6.0)
+	dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(dot)
+	dot.set_anchors_and_offsets_preset(Control.PRESET_CENTER, Control.PRESET_MODE_KEEP_SIZE)
+
+
+func _build_labels() -> void:
+	_prompt = _make_label(Control.PRESET_BOTTOM_WIDE, -150.0, -80.0, 22)
+	_toast = _make_label(Control.PRESET_BOTTOM_WIDE, -200.0, -160.0, 20)
+	_toast.add_theme_color_override(&"font_color", Color(1.0, 0.8, 0.5))
+
+	var help := Label.new()
+	help.text = "WASD move | Mouse look | E pick up | Left click place | Q drop | Shift sprint | Esc menu | F5 restart"
+	help.position = Vector2(12.0, 8.0)
+	help.add_theme_font_size_override(&"font_size", 14)
+	help.modulate = Color(1.0, 1.0, 1.0, 0.7)
+	help.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(help)
+
+
+func _make_label(preset: Control.LayoutPreset, top: float, bottom: float, font_size: int) -> Label:
+	var label := Label.new()
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	label.add_theme_font_size_override(&"font_size", font_size)
+	label.add_theme_color_override(&"font_outline_color", Color.BLACK)
+	label.add_theme_constant_override(&"outline_size", 6)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(label)
+	label.set_anchors_and_offsets_preset(preset)
+	label.offset_top = top
+	label.offset_bottom = bottom
+	return label
+
+
+func _build_menu() -> void:
+	_menu = Control.new()
+	_menu.visible = false
+	add_child(_menu)
+	_menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var dim := ColorRect.new()
+	dim.color = Color(0.0, 0.0, 0.0, 0.55)
+	_menu.add_child(dim)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var center := CenterContainer.new()
+	_menu.add_child(center)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var panel := PanelContainer.new()
+	center.add_child(panel)
+	var margin := MarginContainer.new()
+	for side: StringName in [&"margin_left", &"margin_right", &"margin_top", &"margin_bottom"]:
+		margin.add_theme_constant_override(side, 24)
+	panel.add_child(margin)
+
+	var box := VBoxContainer.new()
+	box.custom_minimum_size = Vector2(360.0, 0.0)
+	box.add_theme_constant_override(&"separation", 10)
+	margin.add_child(box)
+
+	var title := Label.new()
+	title.text = "Paused"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override(&"font_size", 28)
+	box.add_child(title)
+
+	_add_slider(box, "Field of view", Settings.FOV_MIN, Settings.FOV_MAX, 1.0, Settings.fov,
+		func(value: float) -> void: Settings.fov = value)
+	_add_slider(box, "Mouse sensitivity", Settings.SENSITIVITY_MIN, Settings.SENSITIVITY_MAX, 0.05,
+		Settings.mouse_sensitivity, func(value: float) -> void: Settings.mouse_sensitivity = value)
+
+	_resume_button = _add_button(box, "Resume", resume_requested)
+	_add_button(box, "Restart", restart_requested)
+	_add_button(box, "Quit", quit_requested)
+
+
+func _add_slider(box: VBoxContainer, caption: String, low: float, high: float, step: float,
+		value: float, on_change: Callable) -> void:
+	var label := Label.new()
+	label.text = caption
+	box.add_child(label)
+	var slider := HSlider.new()
+	slider.min_value = low
+	slider.max_value = high
+	slider.step = step
+	slider.value = value
+	slider.value_changed.connect(on_change)
+	box.add_child(slider)
+
+
+func _add_button(box: VBoxContainer, caption: String, pressed_signal: Signal) -> Button:
+	var button := Button.new()
+	button.text = caption
+	button.pressed.connect(func() -> void: pressed_signal.emit())
+	box.add_child(button)
+	return button
