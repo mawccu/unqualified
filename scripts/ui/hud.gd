@@ -24,6 +24,7 @@ var _net_row: HBoxContainer
 var _leave_button: Button
 var _toast_left: float = 0.0
 var _task_box: VBoxContainer
+var _task_panel: PanelContainer
 var _task_signature: String = ""
 
 
@@ -76,7 +77,7 @@ func set_tasks(results: Array[Dictionary]) -> void:
 		child.queue_free()
 	var heading := Label.new()
 	heading.text = "SHIFT TASKS"
-	heading.add_theme_font_size_override(&"font_size", 15)
+	heading.add_theme_font_size_override(&"font_size", 12)
 	heading.modulate = Color(1.0, 0.85, 0.4)
 	_task_box.add_child(heading)
 	for result: Dictionary in results:
@@ -98,20 +99,20 @@ func set_tasks(results: Array[Dictionary]) -> void:
 				color = Color(0.6, 0.6, 0.65)
 		var title := Label.new()
 		title.text = "%s %s" % [mark, result["name"]]
-		title.add_theme_font_size_override(&"font_size", 18)
+		title.add_theme_font_size_override(&"font_size", 15)
 		title.modulate = color
 		_task_box.add_child(title)
 		var detail := Label.new()
 		detail.text = str(result["text"])
-		detail.add_theme_font_size_override(&"font_size", 14)
+		detail.add_theme_font_size_override(&"font_size", 12)
 		detail.modulate = color
 		_task_box.add_child(detail)
 		var goal := Label.new()
 		goal.text = str(result["goal"])
-		goal.add_theme_font_size_override(&"font_size", 12)
+		goal.add_theme_font_size_override(&"font_size", 10)
 		goal.modulate = Color(0.75, 0.75, 0.8, 0.85)
 		goal.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		goal.custom_minimum_size = Vector2(290.0, 0.0)
+		goal.custom_minimum_size = Vector2(226.0, 0.0)
 		_task_box.add_child(goal)
 
 
@@ -158,20 +159,21 @@ func _build_task_panel() -> void:
 	var panel := PanelContainer.new()
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.05, 0.05, 0.08, 0.72)
+	style.bg_color = Color(0.05, 0.05, 0.07, 0.5)
 	style.set_corner_radius_all(8)
-	style.set_content_margin_all(12)
+	style.set_content_margin_all(9)
 	panel.add_theme_stylebox_override(&"panel", style)
 	add_child(panel)
-	panel.anchor_left = 1.0
-	panel.anchor_right = 1.0
-	panel.anchor_top = 0.0
-	panel.anchor_bottom = 0.0
-	panel.offset_left = -340.0
-	panel.offset_right = -14.0
-	panel.offset_top = 40.0
-	panel.offset_bottom = 40.0
-	panel.grow_vertical = Control.GROW_DIRECTION_END
+	panel.anchor_left = 0.0
+	panel.anchor_right = 0.0
+	panel.anchor_top = 1.0
+	panel.anchor_bottom = 1.0
+	panel.offset_left = 14.0
+	panel.offset_right = 258.0
+	panel.offset_top = -14.0
+	panel.offset_bottom = -14.0
+	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_task_panel = panel
 	_task_box = VBoxContainer.new()
 	_task_box.add_theme_constant_override(&"separation", 3)
 	_task_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -279,3 +281,13 @@ func _add_button(box: VBoxContainer, caption: String, pressed_signal: Signal) ->
 	button.pressed.connect(func() -> void: pressed_signal.emit())
 	box.add_child(button)
 	return button
+
+
+## The task board's rectangle in screen pixels, for layout checks.
+func task_panel_rect() -> Rect2:
+	return _task_panel.get_global_rect() if _task_panel != null else Rect2()
+
+
+func task_panel_background_alpha() -> float:
+	var style := _task_panel.get_theme_stylebox(&"panel") as StyleBoxFlat
+	return style.bg_color.a if style != null else 0.0

@@ -33,10 +33,9 @@ func _run() -> void:
 	]
 	var names: Array[String] = ["10_lineup_idle_walk_carry_stumble", "11_lineup_sprint_interact_clean_celebrate"]
 	for row: int in 2:
-		var avatars: Array[WorkerAvatar] = []
+		var avatars: Array[WorkerPresenter] = []
 		for i: int in 4:
-			var avatar := WorkerAvatar.new()
-			avatar.setup(i)
+			var avatar: WorkerPresenter = WorkerFactory.create(i)
 			avatar.position = Vector3(-1.65 + 1.1 * float(i), 0.0, -2.4)
 			avatar.rotation.y = PI + (0.25 if i % 2 == 0 else -0.25)
 			_session.add_child(avatar)
@@ -45,7 +44,7 @@ func _run() -> void:
 		for i: int in 4:
 			avatars[i].freeze_pose(rows[row][i][0], rows[row][i][1])
 		await _view(names[row], Vector3(0.0, 0.05, 1.0), 0.0, -0.05)
-		for avatar: WorkerAvatar in avatars:
+		for avatar: WorkerPresenter in avatars:
 			avatar.queue_free()
 		await _frames(2)
 
@@ -70,7 +69,7 @@ func _run() -> void:
 	await _frames(5)
 	remote.net_set_target(Vector3(0.4, 0.05, 2.4), 0.5, 0.0)
 	remote.avatar().update_motion(Vector3(0, 0, -1.3), false, true, 1.0 / 60.0)
-	await _view("15_remote_player_carrying", Vector3(-1.2, 0.05, 4.6), -0.1, 0.0, 12)
+	await _view("15_remote_player_carrying", Vector3(-1.0, 0.05, 4.5), -0.58, -0.02, 14)
 
 	get_tree().quit(0)
 

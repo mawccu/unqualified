@@ -25,6 +25,7 @@ var _task_timer: float = 0.0
 
 
 func _ready() -> void:
+	WorkerFactory.apply_command_line()
 	service = InteractionService.new()
 	service.name = "InteractionService"
 	add_child(service)

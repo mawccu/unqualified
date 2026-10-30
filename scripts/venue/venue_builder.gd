@@ -5,19 +5,19 @@ extends RefCounted
 ## stays in one readable place; move to editor scenes when real art arrives.
 ## Positions come from VenueLayout.
 
-const CREAM: Color = Color(0.93, 0.89, 0.80)
-const WOOD_DARK: Color = Color(0.36, 0.22, 0.14)
-const WOOD_LIGHT: Color = Color(0.78, 0.58, 0.36)
-const GOLD: Color = Color(0.95, 0.74, 0.25)
-const CARPET: Color = Color(0.45, 0.10, 0.16)
-const CURTAIN: Color = Color(0.62, 0.08, 0.12)
-const LINEN: Color = Color(0.97, 0.96, 0.93)
-const SERVICE_WALL: Color = Color(0.70, 0.74, 0.72)
-const SERVICE_FLOOR: Color = Color(0.52, 0.53, 0.52)
-const STEEL: Color = Color(0.72, 0.75, 0.78)
-const CHAIR: Color = Color(0.88, 0.80, 0.62)
+const CREAM: Color = Color(0.86, 0.80, 0.70)
+const WOOD_DARK: Color = Color(0.26, 0.17, 0.12)
+const WOOD_LIGHT: Color = Color(0.46, 0.34, 0.24)
+const GOLD: Color = Color(0.70, 0.55, 0.30)
+const CARPET: Color = Color(0.30, 0.11, 0.13)
+const CURTAIN: Color = Color(0.36, 0.11, 0.14)
+const LINEN: Color = Color(0.93, 0.91, 0.86)
+const SERVICE_WALL: Color = Color(0.56, 0.62, 0.60)
+const SERVICE_FLOOR: Color = Color(0.40, 0.42, 0.42)
+const STEEL: Color = Color(0.62, 0.66, 0.69)
+const CHAIR: Color = Color(0.74, 0.66, 0.50)
 const FLOWERS: Array[Color] = [
-	Color(0.96, 0.42, 0.55), Color(1.0, 0.85, 0.35), Color(0.97, 0.97, 0.95), Color(0.75, 0.55, 0.95),
+	Color(0.84, 0.62, 0.64), Color(0.93, 0.90, 0.82), Color(0.55, 0.65, 0.52), Color(0.66, 0.58, 0.72),
 ]
 
 
@@ -42,7 +42,7 @@ static func material(color: Color, roughness: float = 0.85, glow: float = 0.0) -
 	if glow > 0.0:
 		mat.emission_enabled = true
 		mat.emission = color
-		mat.emission_energy_multiplier = glow
+		mat.emission_energy_multiplier = glow * 0.35
 	return mat
 
 
@@ -149,10 +149,12 @@ static func _shell(root: Node3D) -> void:
 			Vector3(sign_x * door_x, 2.3 + (h - 2.3) * 0.5, dz), SERVICE_WALL)
 		box(root, "ArchTrim", Vector3(VenueLayout.DOOR_WIDTH + 0.3, 0.12, 0.3),
 			Vector3(sign_x * door_x, 2.3, dz), GOLD, false, 0.0, 0.2, 0.4)
-	box(root, "Ceiling", Vector3(20.4, 0.2, 14.4), Vector3(0, VenueLayout.CEILING + 0.1, 0), Color(0.96, 0.94, 0.9), false)
+	var ceiling := box(root, "Ceiling", Vector3(20.4, 0.2, 14.4), Vector3(0, VenueLayout.CEILING + 0.1, 0), Color(0.88, 0.85, 0.78), false) as MeshInstance3D
+	# The soft key light below comes in "through" the ceiling.
+	ceiling.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# Signs over the archways, one for each side.
 	for sign_x: float in [-1.0, 1.0]:
-		label(root, "STAFF ONLY", Vector3(sign_x * door_x, 2.65, dz + 0.12), 0.0, 52, Color(1.0, 0.85, 0.3))
+		label(root, "STAFF ONLY", Vector3(sign_x * door_x, 2.65, dz + 0.12), 0.0, 52, Color(0.86, 0.74, 0.40))
 		label(root, "BALLROOM", Vector3(sign_x * door_x, 2.65, dz - 0.12), 180.0, 52, Color(0.98, 0.92, 0.75))
 
 
@@ -185,7 +187,7 @@ static func _stage(root: Node3D) -> void:
 	box(root, "BackCurtain", Vector3(8.6, 3.0, 0.12), Vector3(0, 2.0, -6.9), CURTAIN, false)
 	for sx: float in [-1.0, 1.0]:
 		box(root, "SideCurtain", Vector3(1.1, 2.95, 0.5), Vector3(sx * 4.4, 1.98, -6.5), CURTAIN, false)
-		box(root, "Speaker", Vector3(0.55, 1.2, 0.5), Vector3(sx * 3.3, 1.1, -5.6), Color(0.1, 0.1, 0.12), true, 0.0, 0.0, 0.4)
+		box(root, "Speaker", Vector3(0.55, 1.2, 0.5), Vector3(sx * 3.3, 1.1, -5.6), Color(0.21, 0.21, 0.24), true, 0.0, 0.0, 0.5)
 		ball(root, "SpeakerCone", 0.16, Vector3(sx * 3.3, 0.95, -5.34), Color(0.25, 0.25, 0.3))
 	# A flower arch on the stage for the ceremony.
 	for sx: float in [-1.0, 1.0]:
@@ -193,13 +195,13 @@ static func _stage(root: Node3D) -> void:
 	box(root, "ArchTop", Vector3(2.6, 0.12, 0.14), Vector3(0, 2.6, -6.0), LINEN, false)
 	for i: int in 9:
 		ball(root, "ArchFlower", 0.15, Vector3(-1.2 + float(i) * 0.3, 2.66, -6.0), FLOWERS[i % FLOWERS.size()])
-	label(root, "AMARA & JAMAL", Vector3(0, 3.22, -6.82), 0.0, 120, Color(1.0, 0.9, 0.55), 16)
+	label(root, "AMARA & JAMAL", Vector3(0, 3.22, -6.82), 0.0, 120, Color(0.88, 0.80, 0.56), 16)
 	label(root, "TODAY", Vector3(0, 2.92, -6.82), 0.0, 40, Color(0.98, 0.85, 0.85))
 
 
 static func _sound_desk(root: Node3D) -> void:
 	var p: Vector3 = VenueLayout.SOUND_DESK
-	box(root, "SoundDesk", Vector3(1.9, 0.82, 0.8), p + Vector3(0, 0.41, 0), Color(0.12, 0.12, 0.14), true, 0.0, 0.0, 0.5)
+	box(root, "SoundDesk", Vector3(1.9, 0.82, 0.8), p + Vector3(0, 0.41, 0), Color(0.21, 0.22, 0.25), true, 0.0, 0.0, 0.5)
 	box(root, "Mixer", Vector3(1.4, 0.07, 0.5), p + Vector3(0, 0.86, 0.02), Color(0.2, 0.2, 0.24), false, 0.0, 0.0, 0.4)
 	for i: int in 8:
 		var cx: float = -0.56 + float(i) * 0.16
@@ -281,15 +283,15 @@ static func _lighting(root: Node3D) -> void:
 	env.background_color = Color(0.05, 0.04, 0.04)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(1.0, 0.9, 0.78)
-	env.ambient_light_energy = 0.3
+	env.ambient_light_energy = 0.28
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.tonemap_exposure = 0.85
+	env.tonemap_exposure = 0.9
 	env.ssao_enabled = true
 	env.ssao_radius = 1.2
 	env.ssao_intensity = 2.0
 	env.glow_enabled = true
-	env.glow_intensity = 0.3
-	env.glow_bloom = 0.04
+	env.glow_intensity = 0.15
+	env.glow_bloom = 0.02
 	var world_env := WorldEnvironment.new()
 	world_env.environment = env
 	root.add_child(world_env)
@@ -298,13 +300,23 @@ static func _lighting(root: Node3D) -> void:
 		_chandelier(root, pos, true)
 	for pos: Vector3 in [Vector3(-6.0, 3.2, 4.5), Vector3(0.0, 3.2, 4.5), Vector3(6.0, 3.2, 4.5)]:
 		_strip_light(root, pos)
+	# One soft warm key light so shadows all fall the same way: it comes from
+	# the entrance side (south-west) and high. Fill comes from the ambient light.
+	var key := DirectionalLight3D.new()
+	key.name = "KeyLight"
+	key.rotation_degrees = Vector3(-58.0, 35.0, 0.0)
+	key.light_color = Color(1.0, 0.88, 0.72)
+	key.light_energy = 0.42
+	key.shadow_enabled = true
+	key.shadow_blur = 1.6
+	root.add_child(key)
 	# A pool of light on the stage.
 	var spot := SpotLight3D.new()
 	spot.position = Vector3(0, 3.2, -3.4)
 	spot.rotation_degrees = Vector3(-72, 0, 0)
 	spot.spot_range = 7.0
 	spot.spot_angle = 42.0
-	spot.light_energy = 1.8
+	spot.light_energy = 1.2
 	spot.light_color = Color(1.0, 0.9, 0.75)
 	root.add_child(spot)
 
@@ -322,7 +334,7 @@ static func _chandelier(root: Node3D, pos: Vector3, shadows: bool) -> void:
 	var light := OmniLight3D.new()
 	light.position = Vector3(0, -0.2, 0)
 	light.omni_range = 11.0
-	light.light_energy = 1.25
+	light.light_energy = 0.95
 	light.light_color = Color(1.0, 0.86, 0.66)
 	light.shadow_enabled = shadows
 	node.add_child(light)
@@ -333,7 +345,7 @@ static func _strip_light(root: Node3D, pos: Vector3) -> void:
 	var light := OmniLight3D.new()
 	light.position = pos + Vector3(0, -0.3, 0)
 	light.omni_range = 8.0
-	light.light_energy = 0.8
+	light.light_energy = 0.7
 	light.light_color = Color(0.92, 0.96, 1.0)
 	root.add_child(light)
 
@@ -342,40 +354,40 @@ static func _strip_light(root: Node3D, pos: Vector3) -> void:
 
 static func _back_of_house(root: Node3D) -> void:
 	# Safety stripe along the service walls.
-	var stripe: Color = Color(0.98, 0.82, 0.1)
+	var stripe: Color = Color(0.78, 0.66, 0.22)
 	box(root, "StripeSouth", Vector3(19.8, 0.14, 0.04), Vector3(0, 1.1, 6.98), stripe, false)
 	box(root, "StripeWest", Vector3(0.04, 0.14, 4.8), Vector3(-9.98, 1.1, 4.5), stripe, false)
 	box(root, "StripeEast", Vector3(0.04, 0.14, 4.8), Vector3(9.98, 1.1, 4.5), stripe, false)
 	# Prep table with the cake layers on top.
 	var prep: Vector3 = VenueLayout.PREP_TABLE
 	box(root, "PrepTable", Vector3(2.8, VenueLayout.PREP_TOP, 0.9), prep + Vector3(0, VenueLayout.PREP_TOP * 0.5, 0), STEEL, true, 0.0, 0.0, 0.4)
-	label(root, "CAKE PREP", prep + Vector3(0, 1.75, -0.55), 180.0, 60, Color(1.0, 0.9, 0.5))
+	label(root, "CAKE PREP", prep + Vector3(0, 1.75, -0.55), 180.0, 60, Color(0.86, 0.80, 0.58))
 	# A table for the table signs.
 	var st: Vector3 = VenueLayout.SIGN_TABLE
 	box(root, "SignTable", Vector3(1.5, VenueLayout.SIGN_TABLE_TOP, 0.7), st + Vector3(0, VenueLayout.SIGN_TABLE_TOP * 0.5, 0), WOOD_LIGHT)
-	label(root, "TABLE SIGNS", st + Vector3(0, 1.55, 0.0), 0.0, 50, Color(1.0, 0.9, 0.5))
+	label(root, "TABLE SIGNS", st + Vector3(0, 1.55, 0.0), 0.0, 50, Color(0.86, 0.80, 0.58))
 	# Storage shelving along the west half of the south wall.
-	var shelf_colors: Array[Color] = [Color(0.72, 0.55, 0.35), Color(0.55, 0.62, 0.72), Color(0.82, 0.78, 0.6), Color(0.65, 0.45, 0.4)]
+	var shelf_colors: Array[Color] = [Color(0.36, 0.46, 0.56), Color(0.50, 0.56, 0.58), Color(0.40, 0.50, 0.46), Color(0.58, 0.60, 0.62)]
 	for i: int in 4:
 		_shelf(root, Vector3(-9.0 + float(i) * 1.85, 0.0, 6.6), shelf_colors, i)
-	label(root, "STORAGE", Vector3(-7.2, 2.7, 6.95), 180.0, 60, Color(1.0, 0.9, 0.5))
+	label(root, "STORAGE", Vector3(-7.2, 2.7, 6.95), 180.0, 60, Color(0.86, 0.80, 0.58))
 	# Wash-up nook on the east side.
 	box(root, "WashCounter", Vector3(3.4, 0.9, 0.75), Vector3(7.6, 0.45, 6.55), STEEL, true, 0.0, 0.0, 0.35)
 	box(root, "SinkBasin", Vector3(0.9, 0.12, 0.5), Vector3(7.6, 0.92, 6.55), Color(0.3, 0.33, 0.38), false, 0.0, 0.0, 0.3)
 	cylinder(root, "Tap", 0.025, 0.3, Vector3(7.6, 1.08, 6.82), Color(0.85, 0.87, 0.9), false, 0.0, 0.2)
 	box(root, "TapSpout", Vector3(0.04, 0.04, 0.2), Vector3(7.6, 1.22, 6.72), Color(0.85, 0.87, 0.9), false)
 	label(root, "WASH-UP", Vector3(7.6, 2.3, 6.95), 180.0, 60, Color(0.7, 0.95, 1.0))
-	cylinder(root, "MopBucket", 0.22, 0.4, Vector3(5.2, 0.2, 6.3), Color(0.95, 0.8, 0.1), true)
+	cylinder(root, "MopBucket", 0.22, 0.4, Vector3(5.2, 0.2, 6.3), Color(0.80, 0.66, 0.20), true)
 	cylinder(root, "MopHandle", 0.02, 1.4, Vector3(5.2, 0.8, 6.3), Color(0.7, 0.5, 0.3), false)
-	cylinder(root, "Extinguisher", 0.09, 0.45, Vector3(9.5, 0.23, 6.5), Color(0.85, 0.1, 0.1), false)
+	cylinder(root, "Extinguisher", 0.09, 0.45, Vector3(9.5, 0.23, 6.5), Color(0.70, 0.18, 0.16), false)
 	# The notice board: staff-only notes.
 	box(root, "NoticeBoard", Vector3(2.0, 1.2, 0.05), Vector3(1.0, 1.85, 6.97), Color(0.68, 0.5, 0.32), false)
 	for i: int in 5:
 		box(root, "Note", Vector3(0.32, 0.4, 0.01), Vector3(0.3 + float(i) * 0.35, 1.85 + 0.12 * sin(float(i) * 2.0), 6.935), Color(0.98, 0.97, 0.85), false, 0.15 * float(i - 2))
-	label(root, "SERVICE NOTES", Vector3(1.0, 2.7, 6.95), 180.0, 56, Color(1.0, 0.9, 0.5))
+	label(root, "SERVICE NOTES", Vector3(1.0, 2.7, 6.95), 180.0, 56, Color(0.86, 0.80, 0.58))
 	# Spare stock to make it feel lived in.
 	for i: int in 3:
-		box(root, "Crate", Vector3(0.7, 0.5, 0.6), Vector3(9.0 - float(i) * 0.1, 0.25 + float(i) * 0.5, 4.2), Color(0.62, 0.48, 0.3), true, 0.1 * float(i))
+		box(root, "Crate", Vector3(0.7, 0.5, 0.6), Vector3(9.0 - float(i) * 0.1, 0.25 + float(i) * 0.5, 4.2), Color(0.36, 0.48, 0.58), true, 0.1 * float(i))
 
 
 static func _shelf(root: Node3D, pos: Vector3, colors: Array[Color], seed_index: int) -> void:

@@ -294,7 +294,7 @@ func _test_controls_unaffected() -> void:
 	remote.queue_free()
 
 
-func _all_shadow_only(avatar: WorkerAvatar) -> bool:
+func _all_shadow_only(avatar: WorkerPresenter) -> bool:
 	var meshes: Array[Node] = avatar.find_children("*", "MeshInstance3D", true, false)
 	if meshes.is_empty():
 		return false

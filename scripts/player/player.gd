@@ -13,7 +13,9 @@ const ACCELERATION: float = 12.0
 const GRAVITY: float = 20.0
 const EYE_HEIGHT: float = 1.55
 const AIM_REACH: float = 3.2
-const HOLD_DISTANCE: float = 0.95
+const HOLD_DISTANCE: float = 1.2
+const HOLD_MIN_DISTANCE: float = 0.8
+const HOLD_OFFSET: Vector2 = Vector2(0.38, -0.4)
 const BASE_LOOK: float = 0.0022
 const MAX_PITCH: float = 1.45
 const REMOTE_SMOOTHING: float = 16.0
@@ -54,7 +56,7 @@ var _previewed_prop: PickupProp
 var _net_pos: Vector3
 var _net_yaw: float = 0.0
 var _net_pitch: float = 0.0
-var _avatar: WorkerAvatar
+var _avatar: WorkerPresenter
 var _hands: FirstPersonHands
 var _look_delta: Vector2 = Vector2.ZERO
 var _last_held: StringName = &""
@@ -78,14 +80,13 @@ func _ready() -> void:
 	add_child(_head)
 
 	hold_point = Node3D.new()
-	hold_point.position = Vector3(0.12, -0.25, -HOLD_DISTANCE)
+	hold_point.position = Vector3(HOLD_OFFSET.x, HOLD_OFFSET.y, -HOLD_DISTANCE)
 	_head.add_child(hold_point)
 
 	# Everyone has a worker body. The local player does not see theirs (first
 	# person) but it still throws a shadow on the floor.
-	_avatar = WorkerAvatar.new()
+	_avatar = WorkerFactory.create(slot)
 	_avatar.name = "Avatar"
-	_avatar.setup(slot)
 	add_child(_avatar)
 
 	if is_local:
@@ -133,7 +134,7 @@ func stumble() -> void:
 		_hands.stumble()
 
 
-func avatar() -> WorkerAvatar:
+func avatar() -> WorkerPresenter:
 	return _avatar
 
 
@@ -266,8 +267,8 @@ func _update_hold_distance() -> void:
 	var distance: float = HOLD_DISTANCE
 	if _ray.is_colliding():
 		var hit_distance: float = _camera.global_position.distance_to(_ray.get_collision_point())
-		distance = clampf(hit_distance - 0.45, 0.5, HOLD_DISTANCE)
-	hold_point.position = Vector3(0.12, -0.25, -distance)
+		distance = clampf(hit_distance - 0.45, HOLD_MIN_DISTANCE, HOLD_DISTANCE)
+	hold_point.position = Vector3(HOLD_OFFSET.x, HOLD_OFFSET.y, -distance)
 
 
 func _update_aim() -> void:

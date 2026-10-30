@@ -66,3 +66,10 @@ static func cake_layer_position(layer: int) -> Vector3:
 
 static func inside_bounds(pos: Vector3) -> bool:
 	return pos.x >= BOUNDS_MIN.x and pos.x <= BOUNDS_MAX.x and pos.z >= BOUNDS_MIN.y and pos.z <= BOUNDS_MAX.y
+
+
+## The "hero view": standing in the west archway looking across the ballroom, so
+## the stage, dance floor, tables and dessert station read in layers.
+const HERO_POSITION: Vector3 = Vector3(-6.0, 0.05, 1.5)
+const HERO_YAW: float = -0.95
+const HERO_PITCH: float = -0.04

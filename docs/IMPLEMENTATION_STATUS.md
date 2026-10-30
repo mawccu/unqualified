@@ -31,22 +31,25 @@ Other:
 - Held-piece ghost: aiming at a free socket with a layer in hand shows a green ghost of that exact layer
 - All of M0 and M1: first-person movement, pick up / place / drop through one validating service, pause menu with settings, host and join from the menu (up to 4), remote players as coloured bodies, disconnect cleanup, host-owned truth
 
-## Character presentation (from the art brief)
+## Visual reset (from the visual reset brief)
 
-Original placeholder art built in code, no third-party assets (see `docs/assets/ASSET_REGISTER.md`):
-- **One chunky toy-like worker body** (about 1.8 m, head about a third of the height, mitten hands, big shoes, panicked eyebrows) in **four costume variants** chosen by player slot: red vest with bow tie and lanyard, blue blazer with headset and radio, yellow apron with lanyard, green beanie with utility belt and one glove
-- **First-person hands**: chunky mittens with colour-matched cuffs. They rest low, bob while moving, lag behind looking around, grip a carried prop where it really is, jab on pick up, place and drop, scrub while cleaning, and fly up on a stumble
-- **Animation**: nine authored clips (idle, walk, sprint, carry idle, carry walk, interact, clean, stumble, celebrate) in an `AnimationPlayer`, driven by an `AnimationTree` state machine. Short actions return to idle by themselves; clean loops until you move; a stumble can interrupt anything and cannot itself be interrupted. Every clip keys every joint so no limb is left frozen by the previous clip
-- **Secondary wobble**: damped springs lag the head, tie, lanyard and apron behind acceleration, and held props lag their yaw a little and tilt slightly. All presentation only
-- **Remote players** are these bodies, with walk, sprint, carry and interact derived locally on each peer from how their position changes and whether they hold something. The local player does not see their own body but it still throws a shadow
-- Wobble never touches the eye, the hold point or the position (tested: zero drift while a stumble plays). A held prop's position still follows the hold point exactly
+The earlier look was rejected as programmer art, and rightly. What changed:
 
-Not done here: no rigged model (the joint and clip names are ready for one), no footstep or foot-plant syncing (walk speed does not scale the clip), no facial animation, no ragdoll, no stumble trigger in the game yet (the animation and `Player.stumble()` exist but nothing causes one), and the stumble, clean and celebrate states are not sent over the network because nothing triggers them yet. Pick up and place do show on other players, derived from the held prop changing.
+- **An authored, rigged worker model** (`assets/characters/worker.glb`, original, made in Blender): chunky bevelled low-poly body, a small readable face, a vest over an off-white shirt, one small accent colour, 13 bones, nine clips, four hair styles, seven accessories. It sits behind a **presenter boundary** (`WorkerPresenter`, `GlbWorker`, `WorkerFactory`), so a better model from a character artist can replace it by following `docs/assets/WORKER_GLB_CONTRACT.md` with no code change. If the file is missing or breaks the contract the game warns and falls back
+- **The code-built sphere/capsule worker is now only a fallback**: faceless mannequin, kept as a debug and test fixture (`--fallback-workers`; the older busier version is `--detailed-workers`)
+- **Workers are four uniforms, not four clown colours**: charcoal, navy, brown and forest vests over off-white shirts and charcoal trousers, one small accent each, told apart by silhouette (hair, hat, apron, headset)
+- **First-person hands are hidden** at rest, walking and carrying. For an action one small hand (half the old size) rises in the lower right corner and withdraws. A carried prop sits low in the right corner, further away
+- **Calmer venue**: warm cream, walnut, muted burgundy and brass in the ballroom; cooler grey-green, plastic crates and steel behind the scenes; one soft warm key light, restrained bloom, dimmer bulbs. A defined **hero view** from the west archway
+- **HUD**: the task board moved to the bottom-left, 19% of the screen width, see-through, smaller text, so it no longer covers signage
+
+Secondary motion is limited to a loose tie, lanyard or apron on the fallback; the authored model has none yet. Not done here: no real artist-made character (the model is script-made and a placeholder), no footstep syncing, no facial animation, no ragdoll, nothing triggers a stumble yet, and stumble, clean and celebrate are not sent to other players.
 
 ## Checks actually run
 
 - `godot --headless --path . --import`: no errors
-- `tests/avatar_test.tscn` (headless): 99 checks, 0 failed. Spring maths (settles, overshoots once, never exceeds its limit, survives a huge time step), four distinct costumes that all build every joint, body proportions, all nine clips (every track points at a real joint, values finite and in range, exact loop seams, stumble 0.40 s), every state transition, the wobble, and that a stumble plus a carried prop leave the eye, hold point and position untouched. It found a real bug: a stumble requested in the same frame the body changed locomotion state could be overwritten before it started; fixed
+- `tests/glb_worker_test.tscn` (headless): 88 checks, 0 failed. The real `worker.glb` against the contract: all 13 bones, all nine clips with matching lengths, every tinted material, every hair style and accessory, correct size and facing, costume tinting per slot, only the right hair and accessories shown, the state machine on the authored model, and the fallback switch
+- `tests/visual_check.tscn` (real window): 11 checks, 0 failed. Rendered twice with and without the thing being judged: idle hands cover 0.00% of the centre lower third; a carried layer covers 7.2% of the central block (limit 20%) and nothing in the crosshair zone; one hand appears low in the right corner for an action and withdraws; the task board is 19% of the width, alpha 0.5, and overlaps none of the signs in the hero view
+- `tests/avatar_test.tscn` (headless, fallback body): 99 checks, 0 failed. Spring maths (settles, overshoots once, never exceeds its limit, survives a huge time step), four distinct costumes that all build every joint, body proportions, all nine clips (every track points at a real joint, values finite and in range, exact loop seams, stumble 0.40 s), every state transition, the wobble, and that a stumble plus a carried prop leave the eye, hold point and position untouched. It found a real bug: a stumble requested in the same frame the body changed locomotion state could be overwritten before it started; fixed
 - `tests/avatar_lineup.tscn`: real-window screenshots of the four coworkers in eight poses, first-person hands (empty, carrying, jab) and a remote player carrying a layer, all reviewed by eye. It found that the hands were first placed below the bottom of the camera view; fixed
 - `tests/task_board_test.tscn` (pure logic, no window): 20 checks, 0 failed. Empty room, partial progress, done, wrong order, swapped signs, repairing a mistake, unknown sockets, and that every placement in the catalog names a socket and prop the venue really builds
 - `tests/m0_selftest.tscn`, headless and in a real window: 46 checks, 0 failed, nothing on stderr. Interaction rules on the new venue, 20 full cycles, exactly six props with none duplicated
@@ -57,6 +60,7 @@ Not done here: no rigged model (the joint and clip names are ready for one), no 
 
 - M0: placing or resetting a prop looked fine headless but did nothing in a real window (a frozen body's transform set between physics steps is overwritten). Now all prop transforms are set inside the physics step
 - M1: the host sent to peers that were mid-disconnect and logged engine errors. It now sends only to fully connected peers
+- Visual reset: the headless engine logged "Parameter material is null" at shutdown because the authored worker leaves tinted materials attached to its meshes; it now releases them as it leaves the scene. The authored worker first built a material copy for tinting; a fresh material is used instead
 - This increment: the socket pad flickered against the top of a cake layer (same height). The pad is now lifted and hidden once a layer sits on it. The first lighting pass was far too bright and washed out; reduced. The flower arch covered the banner names; lowered
 
 ## What is not built (do not assume it works)
