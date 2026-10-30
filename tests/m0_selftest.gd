@@ -41,45 +41,45 @@ func _run() -> void:
 	# Rejections
 	_player.global_position = FAR_AWAY
 	_check("pickup from far away is rejected as out_of_range",
-		_reason(service, _req(&"local", InteractionService.PICKUP, &"cake_section_01", 0)) == InteractionService.ERR_OUT_OF_RANGE)
+		_reason(service, _req(&"peer_1", InteractionService.PICKUP, &"cake_section_01", 0)) == InteractionService.ERR_OUT_OF_RANGE)
 	_player.global_position = NEAR_PROP
 	_check("pickup with a stale revision is rejected",
-		_reason(service, _req(&"local", InteractionService.PICKUP, &"cake_section_01", 99)) == InteractionService.ERR_STALE)
+		_reason(service, _req(&"peer_1", InteractionService.PICKUP, &"cake_section_01", 99)) == InteractionService.ERR_STALE)
 	_check("pickup of an unknown id is rejected",
-		_reason(service, _req(&"local", InteractionService.PICKUP, &"nope", 0)) == InteractionService.ERR_NO_TARGET)
+		_reason(service, _req(&"peer_1", InteractionService.PICKUP, &"nope", 0)) == InteractionService.ERR_NO_TARGET)
 	_check("pickup by an unknown actor is rejected",
 		_reason(service, _req(&"ghost", InteractionService.PICKUP, &"cake_section_01", 0)) == InteractionService.ERR_UNKNOWN_ACTOR)
 	_check("place with empty hands is rejected",
-		_reason(service, _req(&"local", InteractionService.PLACE, &"dessert_socket", -1)) == InteractionService.ERR_NOTHING_HELD)
+		_reason(service, _req(&"peer_1", InteractionService.PLACE, &"dessert_socket", -1)) == InteractionService.ERR_NOTHING_HELD)
 	_check("validate() alone changes nothing", _prop.holder_id == &"" and _prop.revision == 0)
 
 	# Pickup and follow
-	var result: Dictionary = service.request(_req(&"local", InteractionService.PICKUP, &"cake_section_01", 0))
+	var result: Dictionary = service.request(_req(&"peer_1", InteractionService.PICKUP, &"cake_section_01", 0))
 	_check("pickup in reach succeeds", result["ok"])
-	_check("prop and player agree on who holds it", _prop.holder_id == &"local" and _player.held_prop_id == &"cake_section_01")
+	_check("prop and player agree on who holds it", _prop.holder_id == &"peer_1" and _player.held_prop_id == &"cake_section_01")
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	_check("held prop follows the hold point",
 		_prop.global_position.distance_to(_player.hold_point.global_position) < 0.05)
 	_check("second pickup with full hands is rejected",
-		_reason(service, _req(&"local", InteractionService.PICKUP, &"cake_section_01", _prop.revision)) == InteractionService.ERR_HANDS_FULL)
+		_reason(service, _req(&"peer_1", InteractionService.PICKUP, &"cake_section_01", _prop.revision)) == InteractionService.ERR_HANDS_FULL)
 
 	# Contention: a second actor cannot take a held prop
 	var other := Player.new()
-	other.actor_id = &"other"
+	other.setup(&"other", 2, 1, false)
 	other.position = NEAR_PROP
 	other.service = service
 	_session.add_child(other)
 	service.register_actor(other)
 	var contested: Dictionary = service.request(_req(&"other", InteractionService.PICKUP, &"cake_section_01", _prop.revision))
-	_check("a second actor cannot take a prop that is held", not contested["ok"] and _prop.holder_id == &"local")
+	_check("a second actor cannot take a prop that is held", not contested["ok"] and _prop.holder_id == &"peer_1")
 
 	# Placement
 	_player.global_position = FAR_AWAY
 	_check("place out of reach is rejected",
-		_reason(service, _req(&"local", InteractionService.PLACE, &"dessert_socket", -1)) == InteractionService.ERR_OUT_OF_RANGE)
+		_reason(service, _req(&"peer_1", InteractionService.PLACE, &"dessert_socket", -1)) == InteractionService.ERR_OUT_OF_RANGE)
 	_player.global_position = NEAR_SOCKET
-	result = service.request(_req(&"local", InteractionService.PLACE, &"dessert_socket", -1))
+	result = service.request(_req(&"peer_1", InteractionService.PLACE, &"dessert_socket", -1))
 	_check("place in reach succeeds", result["ok"])
 	_check("placed prop sits on the socket",
 		_prop.global_position.distance_to(_socket.snap_transform().origin) < 0.01 and _prop.socket_id == &"dessert_socket")
@@ -92,9 +92,9 @@ func _run() -> void:
 	_check("player hands are empty after placing", _player.held_prop_id == &"")
 
 	# Pickup from the socket frees it; then drop
-	result = service.request(_req(&"local", InteractionService.PICKUP, &"cake_section_01", _prop.revision))
+	result = service.request(_req(&"peer_1", InteractionService.PICKUP, &"cake_section_01", _prop.revision))
 	_check("a placed prop can be picked up again", result["ok"] and _socket.occupant_id == &"")
-	result = service.request(_req(&"local", InteractionService.DROP, &"", -1))
+	result = service.request(_req(&"peer_1", InteractionService.DROP, &"", -1))
 	_check("drop succeeds and the prop becomes physical", result["ok"] and not _prop.freeze and _prop.holder_id == &"")
 	for i: int in 120:
 		await get_tree().physics_frame
@@ -116,11 +116,11 @@ func _run() -> void:
 		_check("cycle %d: reset puts the prop back at its start" % i,
 			_prop.global_position.distance_to(Vector3(-3.0, 0.9, 2.0)) < 0.05)
 		_player.global_position = NEAR_PROP
-		cycles_ok = cycles_ok and bool(service.request(_req(&"local", InteractionService.PICKUP, &"cake_section_01", _prop.revision))["ok"])
+		cycles_ok = cycles_ok and bool(service.request(_req(&"peer_1", InteractionService.PICKUP, &"cake_section_01", _prop.revision))["ok"])
 		_player.global_position = NEAR_SOCKET
-		cycles_ok = cycles_ok and bool(service.request(_req(&"local", InteractionService.PLACE, &"dessert_socket", -1))["ok"])
-		cycles_ok = cycles_ok and bool(service.request(_req(&"local", InteractionService.PICKUP, &"cake_section_01", _prop.revision))["ok"])
-		cycles_ok = cycles_ok and bool(service.request(_req(&"local", InteractionService.DROP, &"", -1))["ok"])
+		cycles_ok = cycles_ok and bool(service.request(_req(&"peer_1", InteractionService.PLACE, &"dessert_socket", -1))["ok"])
+		cycles_ok = cycles_ok and bool(service.request(_req(&"peer_1", InteractionService.PICKUP, &"cake_section_01", _prop.revision))["ok"])
+		cycles_ok = cycles_ok and bool(service.request(_req(&"peer_1", InteractionService.DROP, &"", -1))["ok"])
 		await get_tree().physics_frame
 	_check("20 pickup/place/pickup/drop cycles all succeed", cycles_ok)
 	_check("still exactly one prop in the world", _session.find_children("*", "PickupProp", true, false).size() == 1)

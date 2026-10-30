@@ -1,7 +1,8 @@
 class_name Player
 extends CharacterBody3D
-## First-person controller. Reads input, shows what the crosshair can do, and
-## sends every world change to InteractionService as a request.
+## One player in the room. The local player reads input, shows what the
+## crosshair can do, and sends every world change through submit_request. A
+## remote player is a body that smoothly follows poses sent over the network.
 
 signal prompt_changed(text: String)
 signal feedback(text: String)
@@ -15,6 +16,10 @@ const AIM_REACH: float = 3.2
 const HOLD_DISTANCE: float = 0.95
 const BASE_LOOK: float = 0.0022
 const MAX_PITCH: float = 1.45
+const REMOTE_SMOOTHING: float = 16.0
+const SLOT_COLORS: Array[Color] = [
+	Color(0.9, 0.35, 0.3), Color(0.3, 0.6, 0.95), Color(0.95, 0.8, 0.3), Color(0.5, 0.85, 0.45),
+]
 
 const REASON_TEXT: Dictionary = {
 	&"hands_full": "Your hands are full.",
@@ -27,11 +32,16 @@ const REASON_TEXT: Dictionary = {
 	&"no_target": "Nothing to use there.",
 }
 
-@export var actor_id: StringName = &"local"
+@export var actor_id: StringName = &"peer_1"
 
+var peer_id: int = 1
+var slot: int = 0
+var is_local: bool = true
 var held_prop_id: StringName = &""
 var controls_enabled: bool = true
 var service: InteractionService
+## Set by Session on the local player: sends a request dictionary onward.
+var submit_request: Callable
 var hold_point: Node3D
 
 var _head: Node3D
@@ -42,41 +52,58 @@ var _spawn: Transform3D
 var _request_counter: int = 0
 var _last_prompt: String = ""
 var _previewed_socket: PlacementSocket
+var _net_pos: Vector3
+var _net_yaw: float = 0.0
+var _net_pitch: float = 0.0
+
+
+## Call before add_child.
+func setup(actor: StringName, peer: int, slot_index: int, local: bool) -> void:
+	actor_id = actor
+	peer_id = peer
+	slot = slot_index
+	is_local = local
 
 
 func _ready() -> void:
 	collision_layer = Layers.PLAYER
-	collision_mask = Layers.WORLD
-
-	var shape := CollisionShape3D.new()
-	var capsule := CapsuleShape3D.new()
-	capsule.radius = 0.35
-	capsule.height = 1.7
-	shape.shape = capsule
-	shape.position = Vector3(0.0, 0.85, 0.0)
-	add_child(shape)
+	collision_mask = Layers.WORLD if is_local else 0
 
 	_head = Node3D.new()
 	_head.position = Vector3(0.0, EYE_HEIGHT, 0.0)
 	add_child(_head)
 
-	_camera = Camera3D.new()
-	_camera.keep_aspect = Camera3D.KEEP_WIDTH
-	_head.add_child(_camera)
-
 	hold_point = Node3D.new()
 	hold_point.position = Vector3(0.25, -0.25, -HOLD_DISTANCE)
-	_camera.add_child(hold_point)
+	_head.add_child(hold_point)
 
-	_ray = RayCast3D.new()
-	_ray.target_position = Vector3(0.0, 0.0, -AIM_REACH)
-	_ray.collision_mask = Layers.WORLD | Layers.PROP | Layers.SOCKET
-	_ray.collide_with_areas = false
-	_camera.add_child(_ray)
+	if is_local:
+		var shape := CollisionShape3D.new()
+		var capsule := CapsuleShape3D.new()
+		capsule.radius = 0.35
+		capsule.height = 1.7
+		shape.shape = capsule
+		shape.position = Vector3(0.0, 0.85, 0.0)
+		add_child(shape)
+
+		_camera = Camera3D.new()
+		_camera.keep_aspect = Camera3D.KEEP_WIDTH
+		_head.add_child(_camera)
+
+		_ray = RayCast3D.new()
+		_ray.target_position = Vector3(0.0, 0.0, -AIM_REACH)
+		_ray.collision_mask = Layers.WORLD | Layers.PROP | Layers.SOCKET
+		_ray.collide_with_areas = false
+		_camera.add_child(_ray)
+
+		Settings.changed.connect(_apply_settings)
+		_apply_settings()
+	else:
+		_build_body_visual()
 
 	_spawn = global_transform
-	Settings.changed.connect(_apply_settings)
-	_apply_settings()
+	_net_pos = global_position
+	_net_yaw = rotation.y
 
 
 func eye_position() -> Vector3:
@@ -87,17 +114,55 @@ func drop_velocity() -> Vector3:
 	return velocity * 0.5
 
 
+func look_pitch() -> float:
+	return _pitch if is_local else _net_pitch
+
+
+## Position, yaw and pitch as the network should carry them.
+func sync_pose() -> Array:
+	if is_local:
+		return [global_position, rotation.y, _pitch]
+	return [_net_pos, _net_yaw, _net_pitch]
+
+
+## Turns the player. Used by tests and by reset; mouse look sets the same values.
+func set_look(yaw: float, pitch: float) -> void:
+	rotation.y = yaw
+	_pitch = clampf(pitch, -MAX_PITCH, MAX_PITCH)
+	if _head != null:
+		_head.rotation.x = _pitch
+
+
+func net_position() -> Vector3:
+	return _net_pos
+
+
+## Remote players: where to move toward next.
+func net_set_target(pos: Vector3, yaw: float, pitch: float) -> void:
+	_net_pos = pos
+	_net_yaw = yaw
+	_net_pitch = pitch
+
+
 func reset() -> void:
 	global_transform = _spawn
 	velocity = Vector3.ZERO
 	held_prop_id = &""
 	_pitch = 0.0
-	_head.rotation.x = 0.0
+	_net_pos = global_position
+	if _head != null:
+		_head.rotation.x = 0.0
 	_set_preview(null)
 
 
+## Shows the outcome of a request that did not succeed.
+func report_result(result: Dictionary) -> void:
+	if not result["ok"]:
+		feedback.emit(str(REASON_TEXT.get(result["reason"], "Cannot do that.")))
+
+
 func _unhandled_input(event: InputEvent) -> void:
-	if not controls_enabled:
+	if not is_local or not controls_enabled:
 		return
 	var motion := event as InputEventMouseMotion
 	if motion != null and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -114,14 +179,20 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if not is_local:
+		var blend: float = 1.0 - exp(-REMOTE_SMOOTHING * delta)
+		global_position = global_position.lerp(_net_pos, blend)
+		rotation.y = lerp_angle(rotation.y, _net_yaw, blend)
+		_head.rotation.x = lerpf(_head.rotation.x, _net_pitch, blend)
+		return
 	var input := Vector2.ZERO
 	if controls_enabled:
 		input = Input.get_vector(&"move_left", &"move_right", &"move_forward", &"move_back")
 	var speed: float = SPRINT_SPEED if controls_enabled and Input.is_action_pressed(&"sprint") else WALK_SPEED
 	var wish: Vector3 = (global_transform.basis * Vector3(input.x, 0.0, input.y)).normalized() * speed
-	var blend: float = minf(1.0, ACCELERATION * delta)
-	velocity.x = lerpf(velocity.x, wish.x, blend)
-	velocity.z = lerpf(velocity.z, wish.z, blend)
+	var accel: float = minf(1.0, ACCELERATION * delta)
+	velocity.x = lerpf(velocity.x, wish.x, accel)
+	velocity.z = lerpf(velocity.z, wish.z, accel)
 	if is_on_floor():
 		velocity.y = 0.0
 	else:
@@ -131,7 +202,29 @@ func _physics_process(delta: float) -> void:
 
 
 func _process(_delta: float) -> void:
-	_update_aim()
+	if is_local:
+		_update_aim()
+
+
+func _build_body_visual() -> void:
+	var material := StandardMaterial3D.new()
+	material.albedo_color = SLOT_COLORS[slot % SLOT_COLORS.size()]
+	var body := MeshInstance3D.new()
+	var capsule := CapsuleMesh.new()
+	capsule.radius = 0.35
+	capsule.height = 1.7
+	capsule.material = material
+	body.mesh = capsule
+	body.position = Vector3(0.0, 0.85, 0.0)
+	add_child(body)
+	# A small block on the face so you can see which way they look.
+	var nose := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(0.18, 0.18, 0.3)
+	box.material = material
+	nose.mesh = box
+	nose.position = Vector3(0.0, 0.0, -0.35)
+	_head.add_child(nose)
 
 
 func _update_hold_distance() -> void:
@@ -204,9 +297,8 @@ func _request(action: StringName, target_id: StringName, expected_revision: int)
 
 
 func _submit(req: Dictionary) -> void:
-	var result: Dictionary = service.request(req)
-	if not result["ok"]:
-		feedback.emit(str(REASON_TEXT.get(result["reason"], "Cannot do that.")))
+	if submit_request.is_valid():
+		submit_request.call(req)
 
 
 func _set_prompt(text: String) -> void:

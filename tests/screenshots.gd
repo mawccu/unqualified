@@ -22,27 +22,27 @@ func _run() -> void:
 	await _frames(5)
 	var player: Player = session.player
 	var service: InteractionService = session.service
-	var head: Node3D = player.get_child(1) as Node3D
+
 
 	# 1. Wide view from the spawn point
-	_aim(session, player, head, Vector3(-5.2, 0.05, 3.9), -0.97, -0.12)
+	_aim(session, player, Vector3(-5.2, 0.05, 3.9), -0.97, -0.12)
 	await _frames(8)
 	await _shot("1_room_wide")
 
 	# 2. Looking at the cake section on the side table
-	_aim(session, player, head, Vector3(-3.0, 0.05, 3.4), 0.0, -0.46)
+	_aim(session, player, Vector3(-3.0, 0.05, 3.4), 0.0, -0.46)
 	await _frames(8)
 	await _shot("2_prompt_pick_up")
 
 	# 3. Holding it, aiming at the stand with the ghost preview
-	service.request({"request_id": 1, "actor_id": &"local", "action": InteractionService.PICKUP,
+	service.request({"request_id": 1, "actor_id": &"peer_1", "action": InteractionService.PICKUP,
 		"target_id": &"cake_section_01", "expected_revision": 0})
-	_aim(session, player, head, Vector3(3.0, 0.05, -1.6), 0.0, -0.45)
+	_aim(session, player, Vector3(3.0, 0.05, -1.6), 0.0, -0.45)
 	await _frames(8)
 	await _shot("3_prompt_place_ghost")
 
 	# 4. Placed on the stand
-	print("place result: ", service.request({"request_id": 2, "actor_id": &"local", "action": InteractionService.PLACE,
+	print("place result: ", service.request({"request_id": 2, "actor_id": &"peer_1", "action": InteractionService.PLACE,
 		"target_id": &"dessert_socket", "expected_revision": -1}))
 	await _frames(8)
 	var prop: PickupProp = session.get_node("CakeSection01") as PickupProp
@@ -57,11 +57,10 @@ func _run() -> void:
 	get_tree().quit(0)
 
 
-func _aim(session: Session, player: Player, head: Node3D, pos: Vector3, yaw: float, pitch: float) -> void:
+func _aim(session: Session, player: Player, pos: Vector3, yaw: float, pitch: float) -> void:
 	session._set_menu(false)
 	player.global_position = pos
-	player.rotation.y = yaw
-	head.rotation.x = pitch
+	player.set_look(yaw, pitch)
 
 
 func _frames(count: int) -> void:

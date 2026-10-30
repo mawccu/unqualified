@@ -7,6 +7,9 @@ signal pause_toggled
 signal resume_requested
 signal restart_requested
 signal quit_requested
+signal host_requested
+signal join_requested(address: String)
+signal leave_requested
 
 const TOAST_SECONDS: float = 2.0
 
@@ -14,6 +17,11 @@ var _prompt: Label
 var _toast: Label
 var _menu: Control
 var _resume_button: Button
+var _restart_button: Button
+var _status_label: Label
+var _address_edit: LineEdit
+var _net_row: HBoxContainer
+var _leave_button: Button
 var _toast_left: float = 0.0
 
 
@@ -51,6 +59,16 @@ func set_prompt(text: String) -> void:
 func show_toast(text: String) -> void:
 	_toast.text = text
 	_toast_left = TOAST_SECONDS
+
+
+## mode_id is a NetSession.Mode value.
+func set_net_ui(mode_id: int, status: String) -> void:
+	_status_label.text = status
+	var offline: bool = mode_id == NetSession.Mode.OFFLINE
+	_address_edit.visible = offline
+	_net_row.visible = offline
+	_leave_button.visible = not offline
+	_restart_button.visible = mode_id != NetSession.Mode.CLIENT
 
 
 func set_menu_visible(visible_now: bool) -> void:
@@ -135,8 +153,31 @@ func _build_menu() -> void:
 	_add_slider(box, "Mouse sensitivity", Settings.SENSITIVITY_MIN, Settings.SENSITIVITY_MAX, 0.05,
 		Settings.mouse_sensitivity, func(value: float) -> void: Settings.mouse_sensitivity = value)
 
+	_status_label = Label.new()
+	_status_label.text = "Offline"
+	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(_status_label)
+	_address_edit = LineEdit.new()
+	_address_edit.text = "127.0.0.1"
+	_address_edit.placeholder_text = "Host address"
+	box.add_child(_address_edit)
+	_net_row = HBoxContainer.new()
+	_net_row.add_theme_constant_override(&"separation", 10)
+	box.add_child(_net_row)
+	var host_button := Button.new()
+	host_button.text = "Host a game"
+	host_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	host_button.pressed.connect(func() -> void: host_requested.emit())
+	_net_row.add_child(host_button)
+	var join_button := Button.new()
+	join_button.text = "Join"
+	join_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	join_button.pressed.connect(func() -> void: join_requested.emit(_address_edit.text.strip_edges()))
+	_net_row.add_child(join_button)
+	_leave_button = _add_button(box, "Leave game", leave_requested)
+
 	_resume_button = _add_button(box, "Resume", resume_requested)
-	_add_button(box, "Restart", restart_requested)
+	_restart_button = _add_button(box, "Restart", restart_requested)
 	_add_button(box, "Quit", quit_requested)
 
 

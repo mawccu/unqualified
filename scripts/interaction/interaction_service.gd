@@ -25,6 +25,10 @@ const ERR_STALE: StringName = &"stale_revision"
 const ERR_SOCKET_TAKEN: StringName = &"socket_taken"
 const ERR_SOCKET_REJECTS: StringName = &"socket_rejects"
 
+## False on a client: the host owns the truth, so this copy never drops or
+## releases props by itself. It only validates, for prompts.
+var authoritative: bool = true
+
 var _actors: Dictionary[StringName, Player] = {}
 var _props: Dictionary[StringName, PickupProp] = {}
 var _sockets: Dictionary[StringName, PlacementSocket] = {}
@@ -32,6 +36,34 @@ var _sockets: Dictionary[StringName, PlacementSocket] = {}
 
 func register_actor(actor: Player) -> void:
 	_actors[actor.actor_id] = actor
+
+
+## A player left. On the authority, whatever they held is dropped where it is,
+## so it can be picked up again.
+func unregister_actor(actor_id: StringName) -> void:
+	var actor: Player = _actors.get(actor_id, null)
+	if actor == null:
+		return
+	if authoritative:
+		var held: PickupProp = _props.get(actor.held_prop_id, null)
+		if held != null:
+			held.release(Vector3.ZERO)
+	actor.held_prop_id = &""
+	_actors.erase(actor_id)
+
+
+func props() -> Array[PickupProp]:
+	var out: Array[PickupProp] = []
+	out.assign(_props.values())
+	return out
+
+
+func get_prop(prop_id: StringName) -> PickupProp:
+	return _props.get(prop_id, null)
+
+
+func get_socket(socket_id: StringName) -> PlacementSocket:
+	return _sockets.get(socket_id, null)
 
 
 func register_prop(prop: PickupProp) -> void:
@@ -66,10 +98,11 @@ func request(req: Dictionary) -> Dictionary:
 	return {"ok": reason == OK, "reason": reason}
 
 
-## Puts every actor, prop and socket back to its starting state.
+## Puts every prop and socket back to its starting state and empties every
+## actor's hands. It does not move players: each peer moves its own player.
 func reset_all() -> void:
 	for actor: Player in _actors.values():
-		actor.reset()
+		actor.held_prop_id = &""
 	for socket: PlacementSocket in _sockets.values():
 		socket.occupant_id = &""
 		socket.set_preview(false)
