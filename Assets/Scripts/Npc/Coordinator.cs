@@ -4,20 +4,19 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// The wedding coordinator: the client's eyes in the ballroom. For now she only
-/// patrols a fixed loop and pauses to look at each station. Attention, line of
-/// sight and suspicion come next; this is the body and the route they will use.
+/// The wedding coordinator: the client's eyes in the ballroom. She greets the
+/// crew, then patrols a loop of stations, walking on the navigation mesh (round
+/// tables and moved chairs, past the player) and pausing to look at each one.
+/// Suspicion builds on top of this body and route.
 ///
-/// Only the authority (offline player or host) walks the route; a client copy
-/// will follow the pose it is sent. Route numbers are the Godot ones (north is
-/// -Z there), converted on load.
+/// Only the authority walks the route; a client copy will follow the pose it is
+/// sent. Route numbers are the Godot ones (north is -Z there), converted on load.
 /// </summary>
 public class Coordinator : MonoBehaviour
 {
     const float Speed = 1.25f;
-    const float TurnSpeed = 4f;
 
-    struct Stop
+    public struct Stop
     {
         public Vector3 Position, Look;
         public float Pause;
@@ -26,7 +25,7 @@ public class Coordinator : MonoBehaviour
 
     static Vector3 G(float x, float y, float z) => new(x, y, -z);
 
-    static readonly Stop[] Route =
+    public static readonly Stop[] Route =
     {
         new() { Position = G(0f, 0f, -1f), Pause = 1.5f, Look = G(0f, 1.5f, -14f), State = "checking the stage" },
         new() { Position = G(0f, 0f, -9f), Pause = 2.5f, Look = G(7.5f, 1f, -11.2f), State = "checking the sound desk" },
@@ -43,12 +42,14 @@ public class Coordinator : MonoBehaviour
 
     public bool Authoritative = true;
     public string State { get; private set; } = "patrolling";
+    public NpcWalker Walker { get; private set; }
+    public WorkerAvatar Avatar { get; private set; }
+    /// Something else (an inspection, a question) is directing her; the patrol waits.
+    public bool Busy { get; set; }
 
-    WorkerAvatar _avatar;
     int _stop;
     float _pauseLeft;
     bool _arrived;
-    Vector3 _lastPosition;
     bool _greeting;
     Transform _greetTarget;
 
@@ -56,18 +57,26 @@ public class Coordinator : MonoBehaviour
 
     void Awake()
     {
-        transform.position = Route[0].Position;
-        _lastPosition = transform.position;
+        Walker = NpcWalker.Setup(gameObject, Speed);
         if (workers != null)
-            _avatar = WorkerAvatar.Create(workers, 0, WorkerCostumes.Coordinator, transform);
+            Avatar = WorkerAvatar.Create(workers, 0, WorkerCostumes.Coordinator, transform);
+        Walker.Avatar = Avatar;
+        Walker.Warp(Route[0].Position, Quaternion.identity);
+        Walker.Said += line => GameSession.Instance?.Hud.ShowSubtitle("Coordinator", line, 1.6f);
+        Walker.Stuck += () =>
+        {
+            // Someone is planted in her way: go on to the next stop rather than shove.
+            if (!_greeting && !Busy)
+                NextStop();
+        };
     }
 
     /// Meet the crew at the staff entrance before the patrol: face the target,
     /// say each line with its pose, then go about the route.
     public void Greet(Transform target, Transform spot, IList<(string pose, string line, float seconds)> lines, Action<string, float> say)
     {
-        transform.SetPositionAndRotation(spot.position, spot.rotation);
-        _lastPosition = transform.position;
+        Walker.Warp(spot.position, spot.rotation);
+        Walker.Stop();
         _greetTarget = target;
         _greeting = true;
         State = "welcoming the crew";
@@ -76,77 +85,76 @@ public class Coordinator : MonoBehaviour
 
     IEnumerator GreetRoutine(IList<(string pose, string line, float seconds)> lines, Action<string, float> say)
     {
+        Walker.Performing = true;
         yield return new WaitForSeconds(1.2f);
         foreach (var (pose, line, seconds) in lines)
         {
-            _avatar?.Perform(pose);
+            Avatar?.Perform(pose);
             say?.Invoke(line, seconds);
             yield return new WaitForSeconds(seconds);
         }
-        _avatar?.Perform(WorkerAvatar.Idle);
+        Avatar?.Perform(WorkerAvatar.Idle);
+        Walker.Performing = false;
         _greeting = false;
         _stop = 0;
         _arrived = false;
+        Walker.GoTo(Route[0].Position);
     }
 
     void Update()
     {
-        float dt = Time.deltaTime;
         if (_greeting)
         {
             if (_greetTarget != null)
-                Face(_greetTarget.position, dt);
-            _lastPosition = transform.position;
+                Walker.Face(_greetTarget.position);
             return;
         }
-        if (Authoritative)
-            Walk(dt);
-        var velocity = (transform.position - _lastPosition) / Mathf.Max(dt, 0.0001f);
-        _lastPosition = transform.position;
-        if (_avatar != null)
-            _avatar.UpdateMotion(velocity, false, false, dt);
-    }
-
-    void Walk(float dt)
-    {
+        if (!Authoritative || Busy)
+            return;
         var stop = Route[_stop];
         if (!_arrived)
         {
-            Vector3 toTarget = stop.Position - transform.position;
-            toTarget.y = 0f;
-            if (toTarget.magnitude < 0.08f)
+            if (!Walker.HasDestination)
+                Walker.GoTo(stop.Position);
+            if (Walker.Arrived)
             {
                 _arrived = true;
                 _pauseLeft = stop.Pause;
                 State = stop.State;
+                Walker.Stop();
             }
             else
-            {
-                transform.position += toTarget.normalized * Mathf.Min(Speed * dt, toTarget.magnitude);
-                Face(transform.position + toTarget, dt);
                 State = "walking";
-            }
         }
         else
         {
-            Face(stop.Look, dt);
-            _pauseLeft -= dt;
+            Walker.Face(stop.Look);
+            _pauseLeft -= Time.deltaTime;
             if (_pauseLeft <= 0f)
-            {
-                _stop = (_stop + 1) % Route.Length;
-                _arrived = false;
-            }
+                NextStop();
         }
     }
 
-    void Face(Vector3 point, float dt)
+    void NextStop()
     {
-        Vector3 flat = point - transform.position;
-        flat.y = 0f;
-        if (flat.sqrMagnitude < 0.0025f)
-            return;
-        var wanted = Quaternion.LookRotation(flat, Vector3.up);
-        transform.rotation = Quaternion.Slerp(transform.rotation, wanted, Mathf.Min(1f, TurnSpeed * dt));
+        _stop = (_stop + 1) % Route.Length;
+        _arrived = false;
+        Walker.GoTo(Route[_stop].Position);
+    }
+
+    /// Walk to a point and stop there (an inspection, a question). The patrol resumes when Busy clears.
+    public void GoAndStand(Vector3 point)
+    {
+        _arrived = false;
+        Walker.GoTo(point);
+    }
+
+    /// Back to the patrol from wherever she is.
+    public void ResumePatrol()
+    {
+        Busy = false;
+        _arrived = false;
+        Walker.GoTo(Route[_stop].Position);
     }
 
     /// Pose as the network should carry it.

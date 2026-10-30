@@ -368,7 +368,7 @@ public class Hud : MonoBehaviour
 
     void BuildHelp()
     {
-        _help = Text(_root, "WASD move    Mouse look    Shift sprint    C crouch    E use / pick up    Click place    Q drop    Esc menu    F3 frame rate    F5 restart", 13, new Color(1f, 1f, 1f, 0.45f));
+        _help = Text(_root, "WASD move    Mouse look    Space jump    Shift sprint    C crouch    E use / pick up    Click place    Q drop    Esc menu    F3 frame rate", 13, new Color(1f, 1f, 1f, 0.45f));
         _help.style.position = Position.Absolute;
         _help.style.bottom = 30;
         _help.style.right = 28;
@@ -437,7 +437,7 @@ public class Hud : MonoBehaviour
         _subtitleSpeaker.style.unityFontStyleAndWeight = FontStyle.Bold;
         _subtitleText = Text(_subtitleBox, "", 21, Ink);
         _subtitleText.style.unityTextAlign = TextAnchor.MiddleCenter;
-        _skipHint = Text(_subtitleBox, "Space  skip", 11, new Color(1f, 1f, 1f, 0.4f));
+        _skipHint = Text(_subtitleBox, "Enter  skip", 11, new Color(1f, 1f, 1f, 0.4f));
         _skipHint.style.marginTop = 4;
         _root.Add(_subtitleBox);
         _subtitleBox.style.display = DisplayStyle.None;

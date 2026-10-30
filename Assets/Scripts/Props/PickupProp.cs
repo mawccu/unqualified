@@ -77,6 +77,8 @@ public class PickupProp : MonoBehaviour
         _body.interpolation = RigidbodyInterpolation.Interpolate;
         _body.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
         PropPhysics.Apply(_body, _colliders, category);
+        if (category == PropCategory.Furniture)
+            _body.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
         var bounds = new Bounds();
         bool first = true;
         foreach (var c in _colliders)
@@ -168,6 +170,13 @@ public class PickupProp : MonoBehaviour
         _tilt += _tiltVelocity * dt;
 
         Quaternion rotation;
+        if (category == PropCategory.Furniture)
+        {
+            // Dragged upright along the floor, turning with the holder.
+            target.y = FloorBelow(target);
+            Present(new Pose(target, Quaternion.Euler(0f, _heldYaw, 0f)), dt);
+            return;
+        }
         if (category == PropCategory.Paper)
         {
             // Held up facing you, leaning back a little, with the same small lag.
@@ -177,6 +186,14 @@ public class PickupProp : MonoBehaviour
         else
             rotation = Quaternion.Euler(_tilt.x * Mathf.Rad2Deg, _heldYaw, _tilt.y * Mathf.Rad2Deg);
         Present(new Pose(target, rotation), dt);
+    }
+
+    /// The floor height under a point (anything solid below it in the world layer).
+    static float FloorBelow(Vector3 point)
+    {
+        return Physics.Raycast(point + Vector3.up * 0.5f, Vector3.down, out var hit, 3f, 1 << GameLayers.World, QueryTriggerInteraction.Ignore)
+            ? hit.point.y
+            : point.y;
     }
 
     /// Applies a pose, eased in from where the prop was when its owner changed.

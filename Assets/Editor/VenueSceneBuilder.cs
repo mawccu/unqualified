@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Text;
+using Unity.AI.Navigation;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -68,6 +69,8 @@ public static class VenueSceneBuilder
         PostProcessing();
         GameplaySceneSetup.Add(_root, Camera(), Report);
 
+        EditorSceneManager.SaveScene(scene, ScenePath);
+        Navigation.Bake(_root.gameObject, "Assets/Scenes/Wedding/NavMesh.asset", Report);
         EditorSceneManager.SaveScene(scene, ScenePath);
         var scenes = new List<EditorBuildSettingsScene>(EditorBuildSettings.scenes);
         if (!scenes.Exists(s => s.path == ScenePath))
@@ -287,7 +290,7 @@ public static class VenueSceneBuilder
                 // The pack's chairs face their +Z, so turn each one to look at the table.
                 Vector3 toward = centre - spot;
                 float yaw = Mathf.Atan2(toward.x, toward.z) * Mathf.Rad2Deg;
-                Place("guest_chair", spot, yaw, tables);
+                Navigation.MakeChair($"chair_{all.IndexOf(godot)}_{c}", spot, yaw, tables);
                 chairs++;
             }
         }

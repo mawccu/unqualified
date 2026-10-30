@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.InputSystem;
 using UnityEngine.Rendering.Universal;
 
@@ -20,6 +21,14 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
     const float CrouchHeight = 1.15f;
     const float CrouchEye = 1.0f;
     const float StepLength = 0.72f;
+    /// Jump: about 0.8 m, with a little forgiveness either side of leaving the ground.
+    public const float JumpHeight = 0.8f;
+    const float CoyoteTime = 0.1f;
+    const float JumpBuffer = 0.12f;
+    /// The heaviest thing walking into it can nudge (kg), and how hard.
+    const float PushableMass = 12f;
+    const float PushStrength = 3f;
+    const float MaxNudgeSpeed = 0.35f;
     const float Acceleration = 12f;
     const float Gravity = 20f;
     public const float EyeHeight = 1.55f;
@@ -83,8 +92,17 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
     AudioSource _feet;
     Vector3 _approachTarget;
     float _approachLeft;
+    float _coyote, _jumpBuffered;
+    bool _airborneFromJump;
 
-    InputAction _move, _look, _sprint, _interact, _use, _drop, _crouchKey;
+    /// Test and playtest hooks: drive the same movement code as the keys do.
+    public Vector2? ScriptedMove;
+    public bool ScriptedSprint;
+    public void PressJump() => _jumpBuffered = JumpBuffer;
+    public bool Grounded => _body != null && _body.isGrounded;
+    public event Action Jumped, Landed;
+
+    InputAction _move, _look, _sprint, _interact, _use, _drop, _crouchKey, _jump;
 
     public void Setup(string actorId, int slot, InteractionService service, WorkerLibrary workers)
     {
@@ -132,6 +150,14 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
         Arms = arms.AddComponent<FirstPersonArms>();
         Arms.Build(this, workers, WorkerCostumes.ForSlot(slot));
 
+        // NPCs steer round the player instead of walking into them.
+        var obstacle = gameObject.AddComponent<NavMeshObstacle>();
+        obstacle.shape = NavMeshObstacleShape.Capsule;
+        obstacle.radius = 0.35f;
+        obstacle.height = 1.75f;
+        obstacle.center = new Vector3(0f, 0.875f, 0f);
+        obstacle.carving = false;
+
         _feet = gameObject.AddComponent<AudioSource>();
         _feet.spatialBlend = 0.6f;
         _feet.playOnAwake = false;
@@ -157,7 +183,9 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
         _sprint = new InputAction("sprint", InputActionType.Button, "<Keyboard>/leftShift");
         _sprint.AddBinding("<Gamepad>/leftStickPress");
         _interact = new InputAction("interact", InputActionType.Button, "<Keyboard>/e");
-        _interact.AddBinding("<Gamepad>/buttonSouth");
+        _interact.AddBinding("<Gamepad>/buttonWest");
+        _jump = new InputAction("jump", InputActionType.Button, "<Keyboard>/space");
+        _jump.AddBinding("<Gamepad>/buttonSouth");
         _use = new InputAction("use", InputActionType.Button, "<Mouse>/leftButton");
         _use.AddBinding("<Gamepad>/rightTrigger");
         _drop = new InputAction("drop", InputActionType.Button, "<Keyboard>/q");
@@ -165,14 +193,14 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
         _crouchKey = new InputAction("crouch", InputActionType.Button, "<Keyboard>/c");
         _crouchKey.AddBinding("<Keyboard>/leftCtrl");
         _crouchKey.AddBinding("<Gamepad>/rightStickPress");
-        foreach (var a in new[] { _move, _look, _sprint, _interact, _use, _drop, _crouchKey })
+        foreach (var a in new[] { _move, _look, _sprint, _interact, _use, _drop, _crouchKey, _jump })
             a.Enable();
     }
 
     void OnDestroy()
     {
         GameSettings.Changed -= ApplySettings;
-        foreach (var a in new[] { _move, _look, _sprint, _interact, _use, _drop, _crouchKey })
+        foreach (var a in new[] { _move, _look, _sprint, _interact, _use, _drop, _crouchKey, _jump })
             a?.Dispose();
     }
 
@@ -183,7 +211,9 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
         if (CanControl)
         {
             Look();
-            sprinting = _sprint.IsPressed();
+            sprinting = _sprint.IsPressed() || ScriptedSprint;
+            if (_jump.WasPressedThisFrame())
+                _jumpBuffered = JumpBuffer;
             if (_interact.WasPressedThisFrame())
                 TryInteract();
             else if (_use.WasPressedThisFrame())
@@ -192,19 +222,38 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
                 TryDrop();
         }
 
-        Vector2 input = CanControl ? Vector2.ClampMagnitude(_move.ReadValue<Vector2>(), 1f) : Vector2.zero;
+        Vector2 input = CanControl ? Vector2.ClampMagnitude(ScriptedMove ?? _move.ReadValue<Vector2>(), 1f) : Vector2.zero;
         _wantCrouch = CanControl && _crouchKey.IsPressed();
         UpdateCrouch(dt);
         var carried = HeldProp;
         bool heavy = carried != null && carried.Category == PropCategory.Wide;
-        float speed = Crouching ? CrouchSpeed : sprinting ? SprintSpeed * (heavy ? 0.8f : 1f) : WalkSpeed;
+        bool dragging = carried != null && carried.Category == PropCategory.Furniture;
+        float speed = Crouching ? CrouchSpeed : dragging ? 2.2f : sprinting ? SprintSpeed * (heavy ? 0.8f : 1f) : WalkSpeed;
         if (Crouching)
             sprinting = false;
         Vector3 wish = transform.TransformDirection(new Vector3(input.x, 0f, input.y)) * speed;
         float blend = 1f - Mathf.Exp(-Acceleration * dt);
         _velocity.x = Mathf.Lerp(_velocity.x, wish.x, blend);
         _velocity.z = Mathf.Lerp(_velocity.z, wish.z, blend);
-        _velocity.y = _body.isGrounded ? -2f : _velocity.y - Gravity * dt;
+        // Ground, gravity and the jump. One jump per landing: holding the key does not
+        // repeat it, and a press just before landing or just after walking off an
+        // edge still counts.
+        bool grounded = _body.isGrounded;
+        _coyote = grounded ? CoyoteTime : _coyote - dt;
+        _jumpBuffered -= dt;
+        if (grounded && _velocity.y <= 0f)
+            _velocity.y = -2f;
+        else
+            _velocity.y -= Gravity * dt;
+        if (_jumpBuffered > 0f && _coyote > 0f && CanControl && !Crouching && !dragging)
+        {
+            _velocity.y = Mathf.Sqrt(2f * Gravity * JumpHeight);
+            _jumpBuffered = 0f;
+            _coyote = 0f;
+            _airborneFromJump = true;
+            Jumped?.Invoke();
+            Avatar.Trigger(WorkerAvatar.Interact);
+        }
         if (_approachLeft > 0f)
         {
             // A scripted step in: walk (through the controller, so walls still count)
@@ -216,7 +265,15 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
             _velocity.x = step.x / Mathf.Max(dt, 1e-4f);
             _velocity.z = step.z / Mathf.Max(dt, 1e-4f);
         }
-        _body.Move(_velocity * dt);
+        var flags = _body.Move(_velocity * dt);
+        // A head hitting a ceiling or a table stops the rise at once.
+        if ((flags & CollisionFlags.Above) != 0 && _velocity.y > 0f)
+            _velocity.y = 0f;
+        if (_airborneFromJump && _body.isGrounded && _velocity.y <= 0f)
+        {
+            _airborneFromJump = false;
+            Landed?.Invoke();
+        }
         UpdateSteps(dt);
 
         UpdateAim();
@@ -229,6 +286,22 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
             HeldChanged?.Invoke(held);
         }
         Avatar.UpdateMotion(_body.velocity, sprinting, !string.IsNullOrEmpty(HeldPropId), dt);
+    }
+
+    /// Walking into something light (a chair, a box) nudges it, within limits;
+    /// heavy things and anything kinematic do not move.
+    void OnControllerColliderHit(ControllerColliderHit hit)
+    {
+        var rb = hit.rigidbody;
+        if (rb == null || rb.isKinematic || rb.mass > PushableMass || hit.moveDirection.y < -0.3f)
+            return;
+        // A nudge, not a shove: the thing creeps along at most at a slow shuffle
+        // (dragging with E is how to really move it).
+        Vector3 push = new Vector3(hit.moveDirection.x, 0f, hit.moveDirection.z).normalized;
+        Vector3 v = rb.linearVelocity;
+        float along = Vector3.Dot(v, push);
+        if (along < MaxNudgeSpeed)
+            rb.AddForceAtPosition(push * Mathf.Min(MaxNudgeSpeed - along, PushStrength * Time.deltaTime), hit.point, ForceMode.VelocityChange);
     }
 
     // Body: crouch, steps, camera bob --------------------------------------------
@@ -457,6 +530,7 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
     {
         PropCategory.Paper => new Vector3(0f, -0.2f, 0.34f),
         PropCategory.Wide => new Vector3(0f, -0.42f, 0.5f),
+        PropCategory.Furniture => new Vector3(0f, -1.5f, 0.62f),
         _ => new Vector3(0.17f, -0.36f, 0.44f),
     };
 
@@ -466,6 +540,21 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
     {
         var held = HeldProp;
         Vector3 wanted = HoldOffsetFor(held != null ? held.Category : PropCategory.Small);
+        if (held != null && held.Category == PropCategory.Furniture)
+        {
+            // Dragged at the feet in front of you, level, stopping short of walls.
+            var b = held.LocalBounds;
+            Vector3 flatForward = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
+            Vector3 origin = transform.position + Vector3.up * (b.center.y + 0.06f);
+            float reach = wanted.z + b.extents.z;
+            if (Physics.BoxCast(origin, new Vector3(b.extents.x, b.extents.y * 0.8f, 0.05f), flatForward, out var block,
+                    transform.rotation, reach, (1 << GameLayers.World) | (1 << GameLayers.Prop), QueryTriggerInteraction.Ignore))
+                reach = Mathf.Max(0.35f, block.distance - 0.02f);
+            Vector3 world = transform.position + flatForward * (reach - b.extents.z) - Vector3.up * 0.0f;
+            Vector3 local = Camera.transform.InverseTransformPoint(world);
+            HoldPoint.localPosition = Vector3.Lerp(HoldPoint.localPosition, local, 1f - Mathf.Exp(-18f * dt));
+            return;
+        }
         if (held != null)
         {
             var b = held.LocalBounds;

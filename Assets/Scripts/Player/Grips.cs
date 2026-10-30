@@ -74,6 +74,11 @@ public static class Grips
                 right = UnderSide(t, b, 1f);
                 left = UnderSide(t, b, -1f);
                 break;
+            case PropCategory.Furniture:
+                // Both hands over the top of the backrest (the side nearest the holder).
+                right = Make(t, new Vector3(b.center.x + 0.13f, b.max.y + 0.025f, b.min.z - 0.07f), new Vector3(0f, -0.6f, 1f), Vector3.up, Grip.Wrap);
+                left = Make(t, new Vector3(b.center.x - 0.13f, b.max.y + 0.025f, b.min.z - 0.07f), new Vector3(0f, -0.6f, 1f), Vector3.up, Grip.Wrap);
+                break;
             default:
                 // Hand on the right side of the box, fingers round its front.
                 right = Make(t, new Vector3(b.max.x + 0.02f, b.center.y + 0.01f, b.center.z - 0.05f), new Vector3(0f, -0.12f, 1f), Vector3.right, Grip.Wrap);

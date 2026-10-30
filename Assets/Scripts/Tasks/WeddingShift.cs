@@ -39,7 +39,7 @@ public class WeddingShift : MonoBehaviour
             if (task != null)
                 _assigned.Add(task);
         }
-        session.Hud.SetHelp("WASD move    Mouse look    Shift sprint    E pick up    Click place    Q drop    Esc menu    F3 frame rate");
+        session.Hud.SetHelp("WASD move    Mouse look    Space jump    Shift sprint    C crouch    E pick up / drag    Click place    Q drop    Esc menu");
         if (coordinator != null && greetSpot != null)
             coordinator.Greet(session.Player.transform, greetSpot, GreetingLines(crew), (line, seconds) => session.Hud.ShowSubtitle("Coordinator", line, seconds));
         Refresh();

@@ -37,6 +37,13 @@ switch (cmd) {
   case "drop": {
     var req = new InteractionRequest { RequestId = 994, ActorId = p.ActorId, Action = InteractionAction.Drop, TargetId = "", ExpectedRevision = -1 };
     outcome = s.Service.Validate(req).ToString(); s.Submit(req); break; }
+  case "jump": p.PressJump(); outcome = "jump"; break;
+  case "move": {
+    var a = arg.Split(' ');
+    if (a[0] == "stop") { p.ScriptedMove = null; p.ScriptedSprint = false; outcome = "stopped"; break; }
+    p.ScriptedMove = new UnityEngine.Vector2(float.Parse(a[0]), float.Parse(a[1]));
+    p.ScriptedSprint = a.Length > 2 && a[2] == "sprint";
+    outcome = "moving"; break; }
   case "timescale": UnityEngine.Time.timeScale = float.Parse(arg); outcome = "timescale " + arg; break;
   case "body": p.Avatar.SetShadowOnly(arg == "hide"); outcome = "body " + arg; break;
   case "type": {

@@ -10,6 +10,8 @@ public enum PropCategory
     Small,
     /// Something wide and heavy carried with both hands underneath (a cake layer, a tray).
     Wide,
+    /// Furniture that is dragged along the floor by its back (a chair). Stays upright.
+    Furniture,
 }
 
 /// <summary>
@@ -28,6 +30,7 @@ public static class PropPhysics
     {
         PropCategory.Paper => new Profile { Mass = 0.05f, LinearDamping = 2.6f, AngularDamping = 1.6f, Friction = 0.75f, Bounce = 0f, ImpactPitch = 0f },
         PropCategory.Wide => new Profile { Mass = 3f, LinearDamping = 0.05f, AngularDamping = 0.6f, Friction = 0.85f, Bounce = 0f, CentreOfMassDrop = 0.35f, ImpactPitch = 0.55f },
+        PropCategory.Furniture => new Profile { Mass = 7f, LinearDamping = 2f, AngularDamping = 4f, Friction = 0.6f, Bounce = 0f, CentreOfMassDrop = 0.5f, ImpactPitch = 0.75f },
         _ => new Profile { Mass = 0.4f, LinearDamping = 0.05f, AngularDamping = 0.25f, Friction = 0.55f, Bounce = 0.08f, CentreOfMassDrop = 0.15f, ImpactPitch = 1f },
     };
 

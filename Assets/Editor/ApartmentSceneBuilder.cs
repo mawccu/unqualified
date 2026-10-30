@@ -336,7 +336,7 @@ public static class ApartmentSceneBuilder
         Place(P("computer_monitor"), new Vector3(3.72f, 0.75f, -0.62f), -90f, deskGo.transform, false);
         var keyboard = Place(P("computer_keyboard"), new Vector3(3.42f, 0.75f, -0.62f), -90f, deskGo.transform, false);
         Place(P("computer_tower"), new Vector3(3.62f, 0f, -1.12f), -90f, deskGo.transform, false);
-        Place(P("desk_chair"), new Vector3(2.95f, 0f, -0.62f), 90f, story, false);
+        var deskChair = Place(P("desk_chair"), new Vector3(2.95f, 0f, -0.62f), 90f, story, true);
         // The desktop, and the monitor above it (the bill spot stays free to aim at).
         var deskBox = deskGo.AddComponent<BoxCollider>();
         deskBox.center = new Vector3(0f, 0.38f, 0f);
@@ -369,7 +369,7 @@ public static class ApartmentSceneBuilder
         screen.Configure(hud);
         var desk = deskGo.AddComponent<ComputerDesk>();
         desk.SetEntityId("computer_desk");
-        desk.Configure(seat, view, screen, keyboard.transform);
+        desk.Configure(seat, view, screen, keyboard.transform, deskChair.GetComponent<Collider>());
 
         var sessionGo = new GameObject("Session");
         sessionGo.transform.SetParent(story, false);

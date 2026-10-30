@@ -55,8 +55,9 @@ public class OpeningDirector : MonoBehaviour
     void Awake()
     {
         Instance = this;
-        _skip = new InputAction("skip", InputActionType.Button, "<Keyboard>/space");
-        _skip.AddBinding("<Keyboard>/enter");
+        // Space is jump, so lines are skipped with Enter.
+        _skip = new InputAction("skip", InputActionType.Button, "<Keyboard>/enter");
+        _skip.AddBinding("<Keyboard>/numpadEnter");
         _skip.AddBinding("<Gamepad>/buttonNorth");
         _skip.Enable();
     }
@@ -72,7 +73,7 @@ public class OpeningDirector : MonoBehaviour
     {
         var crew = CrewState.Current;
         _replay = PlayerPrefs.GetInt(IntroSeenKey, 0) == 1;
-        session.Hud.SetHelp("WASD move    Mouse look    Shift sprint    E use / pick up    Click place    Q drop    Esc menu");
+        session.Hud.SetHelp("WASD move    Mouse look    Space jump    Shift sprint    C crouch    E use / pick up    Click place    Q drop    Esc menu");
         if (crew.billReceived)
         {
             // A repeat visit: the landlord has been and gone, the bill is on the desk.

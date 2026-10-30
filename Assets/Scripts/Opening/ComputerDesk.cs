@@ -13,6 +13,7 @@ public class ComputerDesk : Interactable
     [SerializeField] Transform screenView;
     [SerializeField] ComputerScreen screen;
     [SerializeField] Transform keyboard;
+    [SerializeField] Collider chair;
 
     string _user = "";
     PlayerActor _local;
@@ -21,8 +22,9 @@ public class ComputerDesk : Interactable
 
     public string User => _user;
 
-    public void Configure(Transform seatSpot, Transform view, ComputerScreen computer, Transform keys)
+    public void Configure(Transform seatSpot, Transform view, ComputerScreen computer, Transform keys, Collider chairBody)
     {
+        chair = chairBody;
         seat = seatSpot;
         screenView = view;
         screen = computer;
@@ -107,6 +109,9 @@ public class ComputerDesk : Interactable
     {
         _local = player;
         player.Lock();
+        // Sitting in the chair: its body steps aside while you are in it.
+        if (chair != null)
+            chair.enabled = false;
         player.Teleport(seat.position);
         player.SetLook(seat.eulerAngles.y, 12f);
         player.Avatar.SetIdlePose(WorkerAvatar.SitType);
@@ -139,6 +144,10 @@ public class ComputerDesk : Interactable
         screen.Close();
         player.ClearCameraOverride(0.5f);
         player.Arms.ClearAll(0.4f);
+        // Stand up just behind the chair, then it is solid again.
+        player.Teleport(seat.position - seat.forward * 0.5f);
+        if (chair != null)
+            chair.enabled = true;
         player.WantsCursor = false;
         player.EscapeHandler = null;
         player.Avatar.SetIdlePose(null);
