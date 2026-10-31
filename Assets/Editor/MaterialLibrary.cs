@@ -27,9 +27,98 @@ public static class MaterialLibrary
         { "Plaster", ("wallpaper", 1f, 0f, 0.6f) },
         { "Warm linen", ("fabric", 4f, 0f, 0.6f) },
         { "Brushed brass", ("brushed_brass", 2f, 1f, 1f) },
+        // The beds: woven fabric, tinted per piece (Tints), never glossy.
+        { "Mattress ticking", ("fabric", 5f, 0f, 0.25f) },
+        { "Bed sheet", ("fabric", 5f, 0f, 0.25f) },
+        { "Pillowcase", ("fabric", 5f, 0f, 0.25f) },
+        { "Duvet mustard", ("fabric", 3f, 0f, 0.2f) },
+        { "Duvet teal", ("fabric", 3f, 0f, 0.2f) },
+        { "Pallet pine", ("wood_planks", 1.5f, 0f, 0.2f) },
+        { "Pallet block", ("wood_planks", 1.5f, 0f, 0.2f) },
     };
 
+    /// A colour multiplied over a texture set (otherwise textured materials are white-tinted).
+    static readonly Dictionary<string, Color> Tints = new()
+    {
+        { "Mattress ticking", new Color(0.74f, 0.8f, 0.88f) },
+        { "Bed sheet", new Color(0.98f, 0.96f, 0.9f) },
+        { "Pillowcase", new Color(1f, 0.98f, 0.94f) },
+        { "Duvet mustard", new Color(1f, 0.72f, 0.3f) },
+        { "Duvet teal", new Color(0.35f, 0.66f, 0.68f) },
+        { "Pallet pine", new Color(1.15f, 1.05f, 0.9f) },
+        { "Pallet block", new Color(0.85f, 0.75f, 0.62f) },
+    };
+
+    /// One model's slot that must not share the library material of the same name:
+    /// the floor tile's plank gaps are modelled with "Walnut", which is right for
+    /// furniture but makes every seam a bright line on the floor.
+    static readonly Dictionary<(string model, string material), (string name, Color colour, float smoothness)> PerModel = new()
+    {
+        { ("floor_tile_2m", "Walnut"), ("Plank gap", new Color(0.075f, 0.05f, 0.035f), 0.1f) },
+    };
+
+    /// Points the overridden slots at their own materials (also run at the end of Build).
+    public static string ApplyOverrides()
+    {
+        var report = new StringBuilder();
+        Shader lit = Shader.Find("Universal Render Pipeline/Lit");
+        foreach (var pair in PerModel)
+        {
+            string path = AssetDatabase.FindAssets($"t:Model {pair.Key.model}", ModelFolders)
+                .Select(AssetDatabase.GUIDToAssetPath).FirstOrDefault(p => System.IO.Path.GetFileNameWithoutExtension(p) == pair.Key.model);
+            if (path == null)
+                continue;
+            string matPath = $"{MaterialsFolder}/{Safe(pair.Value.name)}.mat";
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(matPath);
+            if (mat == null)
+            {
+                mat = new Material(lit) { name = pair.Value.name };
+                AssetDatabase.CreateAsset(mat, matPath);
+            }
+            mat.SetColor("_BaseColor", pair.Value.colour);
+            mat.SetFloat("_Smoothness", pair.Value.smoothness);
+            EditorUtility.SetDirty(mat);
+            var importer = (ModelImporter)AssetImporter.GetAtPath(path);
+            importer.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), pair.Key.material), mat);
+            importer.SaveAndReimport();
+            report.AppendLine($"{pair.Key.model}: {pair.Key.material} -> {pair.Value.name}");
+        }
+        AssetDatabase.SaveAssets();
+        return report.ToString();
+    }
+
     public static string Build()
+    {
+        var all = new List<string>();
+        foreach (string folder in ModelFolders)
+            foreach (string guid in AssetDatabase.FindAssets("t:Model", new[] { folder }))
+                all.Add(AssetDatabase.GUIDToAssetPath(guid));
+        return BuildModels(all.ToArray());
+    }
+
+    /// Re-applies the texture sets and tints to existing shared materials by name
+    /// (after changing the tables above; models already remapped keep pointing at them).
+    public static string RefreshMaterials(params string[] names)
+    {
+        var done = new List<string>();
+        foreach (var name in names)
+        {
+            var mat = AssetDatabase.LoadAssetAtPath<Material>($"{MaterialsFolder}/{Safe(name)}.mat");
+            if (mat == null)
+                continue;
+            if (Textured.TryGetValue(name, out var tex))
+                ApplyTextureSet(mat, tex.set, tex.tiling, tex.metallic, tex.gloss);
+            if (Tints.TryGetValue(name, out var tint))
+                mat.SetColor("_BaseColor", tint);
+            EditorUtility.SetDirty(mat);
+            done.Add(name);
+        }
+        AssetDatabase.SaveAssets();
+        return "refreshed: " + string.Join(", ", done);
+    }
+
+    /// The same, for just these models (a new prop) without touching the rest.
+    public static string BuildModels(params string[] modelPaths)
     {
         if (!AssetDatabase.IsValidFolder(MaterialsFolder))
             AssetDatabase.CreateFolder("Assets/Art", "Materials");
@@ -38,19 +127,15 @@ public static class MaterialLibrary
 
         // Gather every embedded material and its colour.
         var colours = new Dictionary<string, Color>();
-        foreach (string folder in ModelFolders)
+        foreach (string path in modelPaths)
         {
-            foreach (string guid in AssetDatabase.FindAssets("t:Model", new[] { folder }))
+            foreach (var embedded in AssetDatabase.LoadAllAssetsAtPath(path).OfType<Material>())
             {
-                string path = AssetDatabase.GUIDToAssetPath(guid);
-                foreach (var embedded in AssetDatabase.LoadAllAssetsAtPath(path).OfType<Material>())
-                {
-                    if (colours.ContainsKey(embedded.name))
-                        continue;
-                    Color c = embedded.HasProperty("_BaseColor") ? embedded.GetColor("_BaseColor")
-                        : embedded.HasProperty("_Color") ? embedded.GetColor("_Color") : Color.white;
-                    colours[embedded.name] = c;
-                }
+                if (colours.ContainsKey(embedded.name))
+                    continue;
+                Color c = embedded.HasProperty("_BaseColor") ? embedded.GetColor("_BaseColor")
+                    : embedded.HasProperty("_Color") ? embedded.GetColor("_Color") : Color.white;
+                colours[embedded.name] = c;
             }
         }
 
@@ -75,6 +160,8 @@ public static class MaterialLibrary
                 mat.shader = lit;
             if (Textured.TryGetValue(pair.Key, out var tex))
                 ApplyTextureSet(mat, tex.set, tex.tiling, tex.metallic, tex.gloss);
+            if (Tints.TryGetValue(pair.Key, out var tint))
+                mat.SetColor("_BaseColor", tint);
             EditorUtility.SetDirty(mat);
             library[pair.Key] = mat;
         }
@@ -83,23 +170,20 @@ public static class MaterialLibrary
 
         // Point every model at the shared materials.
         int remapped = 0;
-        foreach (string folder in ModelFolders)
+        foreach (string path in modelPaths)
         {
-            foreach (string guid in AssetDatabase.FindAssets("t:Model", new[] { folder }))
+            var importer = (ModelImporter)AssetImporter.GetAtPath(path);
+            importer.materialImportMode = ModelImporterMaterialImportMode.ImportViaMaterialDescription;
+            foreach (var embedded in AssetDatabase.LoadAllAssetsAtPath(path).OfType<Material>().Select(m => m.name).Distinct().ToList())
             {
-                string path = AssetDatabase.GUIDToAssetPath(guid);
-                var importer = (ModelImporter)AssetImporter.GetAtPath(path);
-                importer.materialImportMode = ModelImporterMaterialImportMode.ImportViaMaterialDescription;
-                foreach (var embedded in AssetDatabase.LoadAllAssetsAtPath(path).OfType<Material>().Select(m => m.name).Distinct().ToList())
-                {
-                    if (library.TryGetValue(embedded, out var shared))
-                        importer.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), embedded), shared);
-                }
-                importer.SaveAndReimport();
-                remapped++;
+                if (library.TryGetValue(embedded, out var shared))
+                    importer.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), embedded), shared);
             }
+            importer.SaveAndReimport();
+            remapped++;
         }
         report.AppendLine($"models remapped to shared materials: {remapped}");
+        report.Append(ApplyOverrides());
         return report.ToString();
     }
 

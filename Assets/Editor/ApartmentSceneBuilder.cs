@@ -78,33 +78,13 @@ public static partial class ApartmentSceneBuilder
         var go = (GameObject)PrefabUtility.InstantiatePrefab(asset, parent);
         go.transform.SetPositionAndRotation(pos, Quaternion.Euler(0f, yaw, 0f));
         if (collide)
-            FitBox(go);
+            ColliderFit.Fit(go);
         if (isStatic)
             MakeStatic(go);
         return go;
     }
 
-    static BoxCollider FitBox(GameObject go)
-    {
-        var bounds = new Bounds();
-        bool first = true;
-        var toLocal = go.transform.worldToLocalMatrix;
-        foreach (var filter in go.GetComponentsInChildren<MeshFilter>())
-        {
-            var b = filter.sharedMesh.bounds;
-            var m = toLocal * filter.transform.localToWorldMatrix;
-            for (int c = 0; c < 8; c++)
-            {
-                var p = m.MultiplyPoint3x4(b.center + Vector3.Scale(b.extents, new Vector3((c & 1) == 0 ? -1 : 1, (c & 2) == 0 ? -1 : 1, (c & 4) == 0 ? -1 : 1)));
-                if (first) { bounds = new Bounds(p, Vector3.zero); first = false; }
-                else bounds.Encapsulate(p);
-            }
-        }
-        var box = go.AddComponent<BoxCollider>();
-        box.center = bounds.center;
-        box.size = bounds.size;
-        return box;
-    }
+    static BoxCollider FitBox(GameObject go) => ColliderFit.FitBox(go);
 
     static void MakeStatic(GameObject go)
     {
@@ -173,7 +153,11 @@ public static partial class ApartmentSceneBuilder
         Block("FloorCollider", new Vector3(-4.2f, -0.3f, -3.2f), new Vector3(4.2f, 0f, 3.2f), wall, shell).GetComponent<MeshRenderer>().enabled = false;
 
         float h = Wall * 0.5f;
-        Block("WallWest", new Vector3(-4f - h, 0f, -3f - h), new Vector3(-4f + h, Height, 3f + h), wall, shell);
+        // The west wall has a real hole for the window (ApartmentSceneBuilder.Window.cs).
+        Block("WallWestSouth", new Vector3(-4f - h, 0f, -3f - h), new Vector3(-4f + h, Height, WindowZ - WindowHalf), wall, shell);
+        Block("WallWestNorth", new Vector3(-4f - h, 0f, WindowZ + WindowHalf), new Vector3(-4f + h, Height, 3f + h), wall, shell);
+        Block("WallWestBelowWindow", new Vector3(-4f - h, 0f, WindowZ - WindowHalf), new Vector3(-4f + h, WindowSill, WindowZ + WindowHalf), wall, shell);
+        Block("WallWestAboveWindow", new Vector3(-4f - h, WindowTop, WindowZ - WindowHalf), new Vector3(-4f + h, Height, WindowZ + WindowHalf), wall, shell);
         // The east wall has an opening into the workshop, just south of the desk.
         Block("WallEastNorth", new Vector3(4f - h, 0f, OpeningNorth), new Vector3(4f + h, Height, 3f + h), wall, shell);
         Block("WallEastSouth", new Vector3(4f - h, 0f, -3f - h), new Vector3(4f + h, Height, OpeningSouth), wall, shell);
@@ -224,8 +208,9 @@ public static partial class ApartmentSceneBuilder
         var f = Group("Furniture");
         string P(string n) => string.Format(Props, n);
         Place(P("couch"), new Vector3(-3.45f, 0f, -1.6f), 90f, f);
-        Place(P("mattress"), new Vector3(-3.3f, 0f, 1.7f), 0f, f);
-        Place(P("mattress"), new Vector3(-1.1f, 0f, 2.3f), 90f, f);
+        // Two beds on pallets: one roughly made, one abandoned (Tools/Blender/make_bedding.py).
+        Place(P("bed_slept_in"), new Vector3(-3.3f, 0f, 1.85f), 180f, f);
+        Place(P("bed_made"), new Vector3(-1.2f, 0f, 2.35f), -90f, f);
         Place(P("rug"), new Vector3(-1.6f, 0f, -0.9f), 90f, f, false);
         Place(string.Format(Pack, "storage_crate"), new Vector3(-2.3f, 0f, -1.5f), 8f, f);
         Place(P("pizza_box"), new Vector3(-2.3f, 0.46f, -1.5f), 20f, f, false);
@@ -236,7 +221,7 @@ public static partial class ApartmentSceneBuilder
         Place(P("trash_bag"), new Vector3(-0.2f, 0f, -2.6f), 0f, f);
         Place(P("trash_bag"), new Vector3(0.25f, 0f, -2.72f), 50f, f);
         Place(P("dead_plant"), new Vector3(-3.6f, 0f, -0.1f), 0f, f);
-        Place(P("window"), new Vector3(-3.87f, 0.9f, 0.6f), 90f, f, false);
+        Window(f);
         var bulb = Place(P("bare_bulb"), new Vector3(0f, Height, 0f), 0f, f, false);
         foreach (var r in bulb.GetComponentsInChildren<Renderer>())
             r.shadowCastingMode = ShadowCastingMode.Off;
@@ -399,7 +384,7 @@ public static partial class ApartmentSceneBuilder
     static void Lighting()
     {
         var lights = Group("Lights");
-        Glow("Window glass", new Color(0.78f, 0.86f, 0.95f), 2.2f);
+        Glow("Window glass", new Color(0.78f, 0.86f, 0.95f), 0.75f);
         Glow("Bulb", new Color(1f, 0.85f, 0.6f), 6f);
 
         Light Make(string name, LightType type, Vector3 pos, Quaternion rot, Color colour, float intensity, float range, float angle = 60f)
@@ -418,7 +403,11 @@ public static partial class ApartmentSceneBuilder
             return l;
         }
         // Grey morning through a dirty window, a weak bulb, a buzzing corridor tube.
-        Make("WindowLight", LightType.Spot, new Vector3(-3.7f, 1.55f, 0.6f), Quaternion.Euler(28f, 90f, 0f), new Color(0.75f, 0.84f, 1f), 14f, 9f, 120f);
+        // Daylight from the window: a baked area light the size of the glass. (A spot
+        // here put a point source beside the light probes, which burned them white:
+        // anything moving near the window, hands included, glowed.)
+        var daylight = Make("WindowLight", LightType.Rectangle, new Vector3(-3.97f, WindowBase + 0.56f, WindowZ), Quaternion.Euler(0f, 90f, 0f), new Color(0.78f, 0.86f, 1f), 9f, 12f);
+        daylight.areaSize = new Vector2(1.12f, 0.92f);
         Make("BulbLight", LightType.Point, new Vector3(0f, Height - 0.6f, 0f), Quaternion.identity, new Color(1f, 0.8f, 0.55f), 5f, 8f);
         Make("KitchenFill", LightType.Point, new Vector3(2.6f, 2.0f, 1.6f), Quaternion.identity, new Color(1f, 0.85f, 0.65f), 1.2f, 5f);
         Make("CorridorTube", LightType.Point, new Vector3(2.5f, Height - 0.15f, -4.1f), Quaternion.identity, new Color(0.85f, 1f, 0.82f), 3.5f, 7f);
@@ -436,7 +425,8 @@ public static partial class ApartmentSceneBuilder
             lightmapper = LightingSettings.Lightmapper.ProgressiveGPU,
             bakedGI = true,
             realtimeGI = false,
-            lightmapResolution = 24f,
+            // Enough texels and samples that the walls come out clean instead of mottled.
+            lightmapResolution = 36f,
             lightmapPadding = 4,
             lightmapMaxSize = 2048,
             directionalityMode = LightmapsMode.CombinedDirectional,
@@ -447,7 +437,7 @@ public static partial class ApartmentSceneBuilder
             // A small room lit by a few close lights: plenty of samples and a
             // denoiser, or the walls and floor come out speckled.
             directSampleCount = 64,
-            indirectSampleCount = 2048,
+            indirectSampleCount = 4096,
             environmentSampleCount = 512,
             filteringMode = LightingSettings.FilterMode.Advanced,
             denoiserTypeDirect = LightingSettings.DenoiserType.OpenImage,

@@ -181,13 +181,12 @@ public partial class ComputerScreen
         name.style.flexShrink = 1;
         name.style.whiteSpace = WhiteSpace.Normal;
 
-        var blurb = Hud.Text(card, part.Blurb, 12, Faint);
-        blurb.style.whiteSpace = WhiteSpace.Normal;
-        blurb.style.marginTop = 6;
+        // Price, what you have, what it is for. The joke line is in the tooltip.
+        card.tooltip = part.Blurb;
         int owned = WorkshopLedger.Count(crew, part.Id);
         int stock = WorkshopLedger.StockLeft(crew, part.Id);
-        Hud.Text(card, $"In your storage: <b>{owned}</b>   ·   stock today: {stock}", 12, Body).style.marginTop = 4;
-        Hud.Text(card, "Used in: " + string.Join(", ", PartCatalog.UsedIn(part.Id)), 12, Body);
+        Hud.Text(card, $"You have <b>{owned}</b>   ·   {stock} left today", 14, Body).style.marginTop = 6;
+        Hud.Text(card, "For " + string.Join(", ", PartCatalog.UsedIn(part.Id)), 14, Faint);
 
         var qty = Row(card);
         qty.style.marginTop = 6;

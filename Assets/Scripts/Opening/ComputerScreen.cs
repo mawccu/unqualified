@@ -72,6 +72,7 @@ public partial class ComputerScreen : MonoBehaviour
         if (_window == null)
             BuildWindow();
         _window.style.display = DisplayStyle.Flex;
+        hud.FocusMode = true;
         if (string.IsNullOrEmpty(Draft.Name))
             Draft.Name = string.IsNullOrEmpty(CrewState.Current.cvName) ? "Your Name" : CrewState.Current.cvName;
         if (!Draft.Loaded)
@@ -92,6 +93,7 @@ public partial class ComputerScreen : MonoBehaviour
     {
         if (_window != null)
             _window.style.display = DisplayStyle.None;
+        hud.FocusMode = false;
     }
 
     // Window -----------------------------------------------------------------------------
@@ -225,8 +227,14 @@ public partial class ComputerScreen : MonoBehaviour
         apply.style.marginTop = 10;
     }
 
+    /// The claim or language whose consequence is spelled out (the last one ticked);
+    /// the others stay one line each.
+    string _explained = "";
+
     void ShowCv(string job)
     {
+        // Ticking a claim redraws the page: keep it where it was.
+        var keep = _site == SiteJobs && _meter != null ? _pageScroll.scrollOffset : Vector2.zero;
         Draft.Job = job;
         SetSite(SiteJobs);
         ClearPage();
@@ -297,24 +305,17 @@ public partial class ComputerScreen : MonoBehaviour
         }).style.marginRight = 10;
         Button(actions, "Submit application", true, () => StartCoroutine(Submit()));
 
-        // Live preview: a sheet of paper.
-        var sheet = new VisualElement();
-        sheet.style.flexGrow = 1;
-        sheet.style.backgroundColor = Color.white;
-        Hud.SetBorder(sheet, 1, new Color(0f, 0f, 0f, 0.15f));
-        Hud.Pad(sheet, 22, 26);
-        columns.Add(sheet);
-        Hud.Text(sheet, "CURRICULUM VITAE", 12, Faint).style.letterSpacing = 3;
-        _preview = Hud.Text(sheet, "", 16, Body);
-        _preview.style.marginTop = 8;
-
-        // The trade, live: every lie raises the pay grade and the heat.
+        // Beside the form: the trade first (every lie raises the pay grade and the
+        // heat), then the paper the employer will read.
+        var right = new VisualElement();
+        right.style.flexGrow = 1;
+        right.style.flexBasis = 300;
+        columns.Add(right);
         _meter = new VisualElement();
-        _meter.style.marginTop = 16;
         _meter.style.backgroundColor = new Color(0.12f, 0.13f, 0.16f);
         Hud.Round(_meter, 6);
         Hud.Pad(_meter, 12, 16);
-        sheet.Add(_meter);
+        right.Add(_meter);
         Hud.Text(_meter, "LIE METER", 11, new Color(1f, 1f, 1f, 0.55f)).style.letterSpacing = 3;
         _meterTier = Hud.Text(_meter, "", 20, Color.white);
         _meterTier.style.unityFontStyleAndWeight = FontStyle.Bold;
@@ -330,9 +331,21 @@ public partial class ComputerScreen : MonoBehaviour
         _meter.Add(track);
         _meterPay = Hud.Text(_meter, "", 16, Yellow);
         _meterPay.style.marginTop = 8;
-        _meterEffects = Hud.Text(_meter, "", 13, new Color(1f, 1f, 1f, 0.8f));
+        _meterEffects = Hud.Text(_meter, "", 14, new Color(1f, 1f, 1f, 0.8f));
         _meterEffects.style.marginTop = 4;
+
+        var sheet = new VisualElement();
+        sheet.style.marginTop = 12;
+        sheet.style.backgroundColor = Color.white;
+        Hud.SetBorder(sheet, 1, new Color(0f, 0f, 0f, 0.15f));
+        Hud.Pad(sheet, 18, 22);
+        right.Add(sheet);
+        Hud.Text(sheet, "YOUR CV, AS THEY WILL READ IT", 12, Faint).style.letterSpacing = 2;
+        _preview = Hud.Text(sheet, "", 15, Body);
+        _preview.style.marginTop = 8;
         RefreshPreview();
+        if (keep != Vector2.zero)
+            _pageScroll.schedule.Execute(() => _pageScroll.scrollOffset = keep).StartingIn(0);
     }
 
     void RefreshMeter()
@@ -500,7 +513,7 @@ public partial class ComputerScreen : MonoBehaviour
         {
             bool on = Draft.Claims.Contains(id);
             label.text = (on ? "☑  " : "☐  ") + text;
-            note.style.display = on ? DisplayStyle.Flex : DisplayStyle.None;
+            note.style.display = on && _explained == id ? DisplayStyle.Flex : DisplayStyle.None;
             StyleChoice(b, on);
             label.style.color = on ? Color.white : Body;
             note.style.color = on ? Yellow : Alarm;
@@ -508,9 +521,11 @@ public partial class ComputerScreen : MonoBehaviour
         b.clicked += () =>
         {
             if (!Draft.Claims.Remove(id))
+            {
                 Draft.Claims.Add(id);
-            Refresh();
-            RefreshPreview();
+                _explained = id;
+            }
+            ShowCv(Draft.Job);
         };
         Refresh();
         parent.Add(b);
@@ -532,7 +547,7 @@ public partial class ComputerScreen : MonoBehaviour
         {
             bool on = Draft.Languages.Contains(language);
             label.text = (on ? "☑  " : "☐  ") + $"{CallLanguage.Name(language)} (fluent)";
-            note.style.display = on ? DisplayStyle.Flex : DisplayStyle.None;
+            note.style.display = on && _explained == language ? DisplayStyle.Flex : DisplayStyle.None;
             StyleChoice(b, on);
             label.style.color = on ? Color.white : Body;
             native.style.color = on ? Yellow : Faint;
@@ -541,9 +556,11 @@ public partial class ComputerScreen : MonoBehaviour
         b.clicked += () =>
         {
             if (!Draft.Languages.Remove(language))
+            {
                 Draft.Languages.Add(language);
-            Refresh();
-            RefreshPreview();
+                _explained = language;
+            }
+            ShowCv(Draft.Job);
         };
         Refresh();
         parent.Add(b);

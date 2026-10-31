@@ -92,7 +92,8 @@ public static partial class GameplaySceneSetup
         {
             spawns[i] = new GameObject($"Spawn{i}").transform;
             spawns[i].SetParent(gameplay, false);
-            spawns[i].SetPositionAndRotation(G(-1.2f + 0.8f * i, 0.05f, 5.6f), Quaternion.Euler(0f, Yaw(180f), 0f));
+            // Facing into the hall, toward where the coordinator meets the crew (not the wall behind).
+            spawns[i].SetPositionAndRotation(G(-1.2f + 0.8f * i, 0.05f, 5.6f), Quaternion.Euler(0f, 80f, 0f));
         }
 
         var hudGo = new GameObject("HUD");
@@ -247,7 +248,8 @@ public static partial class GameplaySceneSetup
         }
         panel.themeStyleSheet = AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>(ThemePath);
         panel.scaleMode = PanelScaleMode.ScaleWithScreenSize;
-        panel.referenceResolution = new Vector2Int(1920, 1080);
+        // 1600x900: at 1280x720 a 14 px label is 11 px on screen, not 9; at 1080p a little larger than designed.
+        panel.referenceResolution = new Vector2Int(1600, 900);
         panel.screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight;
         panel.match = 0.5f;
         EditorUtility.SetDirty(panel);

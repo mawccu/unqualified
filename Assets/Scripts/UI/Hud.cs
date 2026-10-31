@@ -80,6 +80,11 @@ public partial class Hud : MonoBehaviour
         if (_root == null)
             return;
         UpdateShiftUi();
+        if (!_focus && _cardLines.Length > 1 && UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current.tabKey.wasPressedThisFrame)
+        {
+            _cardExpanded = !_cardExpanded;
+            DrawCardLines();
+        }
         float dt = Time.unscaledDeltaTime;
         if (_toastLeft > 0f)
         {
@@ -143,16 +148,52 @@ public partial class Hud : MonoBehaviour
 
     // The card ---------------------------------------------------------------------------
 
-    /// The top-left card: an eyebrow line, a bold title and optional lines.
+    string _cardKey;
+    string[] _cardLines = Array.Empty<string>();
+    bool _cardExpanded, _focus;
+
+    /// The top-left card: an eyebrow line, a bold title and optional lines. Only the
+    /// first line shows; Tab shows the rest (the details are there, not in the way).
     public void SetCard(string eyebrow, string title, params string[] lines)
     {
         Build();
         _card.style.display = DisplayStyle.Flex;
+        string key = eyebrow + "|" + title + "|" + string.Join("|", lines);
+        if (key == _cardKey)
+            return;
+        _cardKey = key;
         _eyebrow.text = eyebrow;
         _title.text = title;
+        _cardLines = Array.FindAll(lines, l => !string.IsNullOrWhiteSpace(l));
+        DrawCardLines();
+    }
+
+    void DrawCardLines()
+    {
         _cardBody.Clear();
-        foreach (var line in lines)
-            Text(_cardBody, line, 14, Muted).style.marginTop = 6;
+        for (int i = 0; i < _cardLines.Length && (i == 0 || _cardExpanded); i++)
+            Text(_cardBody, _cardLines[i], 14, Muted).style.marginTop = 6;
+        if (_cardLines.Length > 1)
+        {
+            var hint = Text(_cardBody, _cardExpanded ? "<b>Tab</b>  less" : $"<b>Tab</b>  details ({_cardLines.Length - 1} more)", 12, new Color(1f, 1f, 1f, 0.4f));
+            hint.style.marginTop = 6;
+        }
+    }
+
+    /// A full-screen interface is open (the computer, the phone console, a workshop
+    /// sheet): the card, the status line and the key help step aside.
+    public bool FocusMode
+    {
+        get => _focus;
+        set
+        {
+            Build();
+            _focus = value;
+            var v = value ? Visibility.Hidden : Visibility.Visible;
+            _card.style.visibility = v;
+            _status.style.visibility = v;
+            _help.style.visibility = v;
+        }
     }
 
     public void HideCard()
@@ -165,6 +206,7 @@ public partial class Hud : MonoBehaviour
     public void SetTasks(string eyebrow, IReadOnlyList<TaskBoard.Result> results, ICollection<string> assigned)
     {
         Build();
+        _cardKey = null;
         _card.style.display = DisplayStyle.Flex;
         _eyebrow.text = eyebrow;
         _title.text = "Tonight's essentials";
@@ -197,6 +239,8 @@ public partial class Hud : MonoBehaviour
             text.Add(nameRow);
             var name = Text(nameRow, r.Name, 16, Ink);
             name.style.unityFontStyleAndWeight = FontStyle.Bold;
+            // One line: a wrapped name can overlap the line under it on the first layout pass.
+            name.style.whiteSpace = WhiteSpace.NoWrap;
             if (r.Status == TaskBoard.Status.NotBuilt)
                 name.style.color = Muted;
             if (assigned != null && assigned.Contains(r.Id))

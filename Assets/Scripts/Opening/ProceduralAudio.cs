@@ -93,7 +93,22 @@ public static class ProceduralAudio
         return Mathf.Sin(2f * Mathf.PI * f * t) * Mathf.Exp(-t * 28f) * 0.35f;
     });
 
-    static AudioClip _chirp, _hum, _ratchet, _beep, _buzz, _tear;
+    static AudioClip _chirp, _hum, _ratchet, _beep, _buzz, _tear, _street, _slide;
+
+    /// The alley outside: a low traffic rumble that swells now and then, a far-off
+    /// horn, the odd bird (loops).
+    public static AudioClip Street => _street ??= Make("street", 8f, t =>
+    {
+        float rumble = (Random.value * 2f - 1f) * 0.05f * (0.6f + 0.4f * Mathf.Sin(t * 0.8f));
+        float swell = Mathf.Sin(2f * Mathf.PI * 55f * t) * 0.03f * Mathf.Max(0f, Mathf.Sin(t * 0.785f));
+        float horn = t > 5.1f && t < 5.45f ? (Mathf.Sin(2f * Mathf.PI * 330f * t) + 0.5f * Mathf.Sin(2f * Mathf.PI * 415f * t)) * 0.02f : 0f;
+        float bird = (t % 2.7f) < 0.08f ? Mathf.Sin(2f * Mathf.PI * (3400f + 900f * Mathf.Sin(t * 80f)) * t) * 0.025f : 0f;
+        return rumble + swell + horn + bird;
+    });
+
+    /// A sash sliding in a gritty aluminium track.
+    public static AudioClip Slide => _slide ??= Make("slide", 0.6f, t =>
+        (Random.value * 2f - 1f) * Mathf.Sin(Mathf.PI * t / 0.6f) * (0.12f + 0.06f * Mathf.Sin(t * 140f)));
 
     /// A homemade earpiece confirming a hint: two tiny, too-loud beeps.
     public static AudioClip Chirp => _chirp ??= Make("chirp", 0.22f, t =>

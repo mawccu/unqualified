@@ -60,18 +60,26 @@ public static class LaunchOptions
                 QualitySettings.vSyncCount = 0;
                 Application.targetFrameRate = -1;
             }
-            int frames = 0;
+            int frames = 0, hitches = 0, catchUps = 0;
             float start = Time.realtimeSinceStartup, worst = 0f, last = start;
+            // The first frame of a window carries the previous window's log write: not the game's.
+            yield return null;
+            start = last = Time.realtimeSinceStartup;
             while (Time.realtimeSinceStartup - start < 5f)
             {
                 yield return null;
                 frames++;
                 float now = Time.realtimeSinceStartup;
                 worst = Mathf.Max(worst, now - last);
+                if (now - last > 0.025f)
+                    hitches++;
+                // A long frame followed by a very short one is pacing jitter, not a dropped frame.
+                if (now - last < 0.008f)
+                    catchUps++;
                 last = now;
             }
             float seconds = Time.realtimeSinceStartup - start;
-            Debug.Log($"[fps] {UnityEngine.SceneManagement.SceneManager.GetActiveScene().name}: {frames / seconds:0} average, worst frame {worst * 1000f:0} ms");
+            Debug.Log($"[fps] {UnityEngine.SceneManagement.SceneManager.GetActiveScene().name}: {frames / seconds:0} average, worst frame {worst * 1000f:0} ms, {hitches} frame(s) over 25 ms, {catchUps} under 8 ms");
         }
     }
 

@@ -94,6 +94,7 @@ public class SupportConsole : MonoBehaviour
         if (_window == null)
             Build();
         _window.style.display = DisplayStyle.Flex;
+        hud.FocusMode = true;
         Shift.Changed += OnChanged;
         Redraw(true);
     }
@@ -103,6 +104,7 @@ public class SupportConsole : MonoBehaviour
         if (_window == null)
             return;
         _window.style.display = DisplayStyle.None;
+        hud.FocusMode = false;
         ClosePopup();
         if (Shift != null)
             Shift.Changed -= OnChanged;
@@ -429,20 +431,25 @@ public class SupportConsole : MonoBehaviour
         if (call == null || call.State == CallState.Ringing)
             return;
 
-        Section(_respond, "SAY");
-        Say("Greet: \"How can I help?\"", "greet");
-        Say("Ask for the order number", "ask_order");
-        foreach (var (fact, label) in CallConversation.Questions)
-            Say(label, "ask", fact);
-        Say("Apologise", "apologise");
-        Say(call.Def.PromiseIntent, "promise");
-        Say("Ask a colleague for help", "colleague");
-
+        // Ending the call sits up with the phone, never below the fold.
         Section(_respond, "FINISH");
         Say("\"Is there anything else?\" (close if fixed)", "close");
         var anyway = Say("Mark as resolved anyway", "close_anyway");
         anyway.style.color = Danger;
         Say("Escalate to second line (honest)", "escalate");
+
+        // Grouped by what you are doing; what you have already found out is ticked.
+        string Done(string fact) => call.Facts.Contains(fact) ? "✓  " : "";
+        Section(_respond, "OPEN");
+        Say(Done("greeted") + "Greet: \"How can I help?\"", "greet");
+        Say(Done("order_heard") + "Ask for the order number", "ask_order");
+        Section(_respond, "ASK ABOUT");
+        foreach (var (fact, label) in CallConversation.Questions)
+            Say(Done(fact) + label, "ask", fact);
+        Section(_respond, "SMOOTH IT OVER");
+        Say("Apologise", "apologise");
+        Say(call.Def.PromiseIntent, "promise");
+        Say("Ask a colleague for help", "colleague");
     }
 
     Button Say(string label, string intent, string arg = "")

@@ -92,33 +92,13 @@ public static class CallCenterSceneBuilder
         var go = (GameObject)PrefabUtility.InstantiatePrefab(asset, parent);
         go.transform.SetPositionAndRotation(pos, Quaternion.Euler(0f, yaw, 0f));
         if (collide)
-            FitBox(go);
+            ColliderFit.Fit(go);
         if (isStatic)
             MakeStatic(go);
         return go;
     }
 
-    static BoxCollider FitBox(GameObject go)
-    {
-        var bounds = new Bounds();
-        bool first = true;
-        var toLocal = go.transform.worldToLocalMatrix;
-        foreach (var filter in go.GetComponentsInChildren<MeshFilter>())
-        {
-            var b = filter.sharedMesh.bounds;
-            var m = toLocal * filter.transform.localToWorldMatrix;
-            for (int c = 0; c < 8; c++)
-            {
-                var p = m.MultiplyPoint3x4(b.center + Vector3.Scale(b.extents, new Vector3((c & 1) == 0 ? -1 : 1, (c & 2) == 0 ? -1 : 1, (c & 4) == 0 ? -1 : 1)));
-                if (first) { bounds = new Bounds(p, Vector3.zero); first = false; }
-                else bounds.Encapsulate(p);
-            }
-        }
-        var box = go.AddComponent<BoxCollider>();
-        box.center = bounds.center;
-        box.size = bounds.size;
-        return box;
-    }
+    static BoxCollider FitBox(GameObject go) => ColliderFit.FitBox(go);
 
     static void MakeStatic(GameObject go)
     {

@@ -98,6 +98,7 @@ public class WorkshopPanel : MonoBehaviour
         _redraw = redraw;
         _confirmDismantle = "";
         _window.style.display = DisplayStyle.Flex;
+        hud.FocusMode = true;
         player.Lock();
         player.WantsCursor = true;
         player.EscapeHandler = () =>
@@ -117,6 +118,7 @@ public class WorkshopPanel : MonoBehaviour
         if (!IsOpen)
             return;
         _window.style.display = DisplayStyle.None;
+        hud.FocusMode = false;
         Showing = "";
         var player = _player;
         _player = null;

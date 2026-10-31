@@ -21,33 +21,13 @@ public static partial class GameplaySceneSetup
         var go = (GameObject)PrefabUtility.InstantiatePrefab(asset, parent);
         go.transform.SetPositionAndRotation(pos, Quaternion.Euler(0f, yaw, 0f));
         if (collide)
-            FitBox(go);
+            ColliderFit.Fit(go);
         foreach (var t in go.GetComponentsInChildren<Transform>(true))
             GameObjectUtility.SetStaticEditorFlags(t.gameObject, StaticEditorFlags.ContributeGI | StaticEditorFlags.BatchingStatic | StaticEditorFlags.ReflectionProbeStatic);
         return go;
     }
 
-    static BoxCollider FitBox(GameObject go)
-    {
-        var bounds = new Bounds();
-        bool first = true;
-        var toLocal = go.transform.worldToLocalMatrix;
-        foreach (var filter in go.GetComponentsInChildren<MeshFilter>())
-        {
-            var b = filter.sharedMesh.bounds;
-            var m = toLocal * filter.transform.localToWorldMatrix;
-            for (int c = 0; c < 8; c++)
-            {
-                var p = m.MultiplyPoint3x4(b.center + Vector3.Scale(b.extents, new Vector3((c & 1) == 0 ? -1 : 1, (c & 2) == 0 ? -1 : 1, (c & 4) == 0 ? -1 : 1)));
-                if (first) { bounds = new Bounds(p, Vector3.zero); first = false; }
-                else bounds.Encapsulate(p);
-            }
-        }
-        var box = go.AddComponent<BoxCollider>();
-        box.center = bounds.center;
-        box.size = bounds.size;
-        return box;
-    }
+    static BoxCollider FitBox(GameObject go) => ColliderFit.FitBox(go);
 
     static T Usable<T>(GameObject go, string id) where T : Interactable
     {
@@ -92,8 +72,11 @@ public static partial class GameplaySceneSetup
         var blades = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(P("fan_blades")), fan.transform);
         blades.transform.localPosition = new Vector3(0f, 0.25f, 0.055f);
         Usable<DeskFan>(fan, "fan").Configure(blades.transform);
+        // On the worktop either side of the tray (not past its front edge, where the
+        // old one-box collider used to hold them up in mid-air).
+        float[] slipX = { -10.05f, -9.85f, -9.15f, -8.95f };
         for (int i = 0; i < 4; i++)
-            MakeProp($"order_slip_{i}", "clutter", "an order slip", A("envelope"), new Vector3(-9.9f + i * 0.25f, 0.93f, -13.2f + (i % 2) * 0.08f), i * 37f, 0.05f, rooms, PropCategory.Paper);
+            MakeProp($"order_slip_{i}", "clutter", "an order slip", A("envelope"), new Vector3(slipX[i], 0.93f, -13.42f + (i % 2) * 0.07f), i * 37f, 0.05f, rooms, PropCategory.Paper);
         var kitchenBin = StaticModel(P("bin_body"), new Vector3(-1f, 0f, -13.4f), 0f, rooms);
         var kitchenLid = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(P("bin_lid")), kitchenBin.transform);
         kitchenLid.transform.localPosition = new Vector3(0f, 0.42f, -0.17f);
