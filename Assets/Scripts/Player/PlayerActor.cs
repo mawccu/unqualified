@@ -111,6 +111,7 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
     /// Test and playtest hooks: drive the same movement code as the keys do.
     public Vector2? ScriptedMove;
     public bool ScriptedSprint;
+    public bool ScriptedCrouch;
     /// The seat the player is sitting on, if any (moving or E gets them up).
     public Seat SeatedOn { get; set; }
     public void PressJump() => _jumpBuffered = JumpBuffer;
@@ -256,7 +257,7 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
                 SeatedOn.Stand();
             input = Vector2.zero;
         }
-        _wantCrouch = CanControl && _crouchKey.IsPressed();
+        _wantCrouch = CanControl && (_crouchKey.IsPressed() || ScriptedCrouch);
         UpdateCrouch(dt);
         var carried = HeldProp;
         bool heavy = carried != null && carried.Category == PropCategory.Wide;
@@ -666,9 +667,92 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
     {
         PropCategory.Paper => new Vector3(0f, -0.2f, 0.34f),
         PropCategory.Wide => new Vector3(0f, -0.42f, 0.5f),
-        PropCategory.Furniture => new Vector3(0f, -1.5f, 0.78f),
+        // Close enough that the hands reach its backrest even looking down at it.
+        PropCategory.Furniture => new Vector3(0f, -1.5f, 0.6f),
         _ => new Vector3(0.17f, -0.36f, 0.44f),
     };
+
+    /// Where the held thing's base goes (camera space) so that what holds it is in
+    /// view at the current field of view: one-handed things put the right hand low
+    /// on the right of the frame, a book sits low in the middle on both palms, a
+    /// tray or cake as WideHoldOffset says. Before, everything small was carried
+    /// about 39 degrees below the middle of the view, out of the frame.
+    Vector3 HoldOffset(PickupProp held)
+    {
+        float fov = Camera.fieldOfView;
+        var profile = Grips.ProfileOf(held);
+        // The carry is laid out in a frame that follows only part of the look up or
+        // down (like the shoulders, FirstPersonArms.Shoulder): what you hold to read
+        // stays up in front of you, anything else stays nearer your chest, so a glance
+        // at the ceiling does not lift a tray out of your hands' reach.
+        float pitch = Mathf.DeltaAngle(0f, Camera.transform.eulerAngles.x);
+        bool reading = profile == Grips.Profile.Paper || profile == Grips.Profile.Book || profile == Grips.Profile.FlatPaper;
+        float follow = reading ? 0.75f : 0.5f;
+        var frame = Quaternion.Euler(-pitch * (1f - follow), 0f, 0f); // hold frame -> camera
+        // How the prop itself is turned, seen from the hold frame.
+        float behind = pitch * (1f - follow);
+        switch (profile)
+        {
+            case Grips.Profile.Wide:
+                return frame * WideHoldOffset(held.LocalBounds, fov);
+            case Grips.Profile.Book:
+            {
+                // Lying back on the palms: the hands at the bottom of the view.
+                var lay = Grips.Lay(held);
+                var b = held.LocalBounds;
+                var laid = new Bounds(lay * b.center, Vector3.zero);
+                for (int i = 0; i < 8; i++)
+                    laid.Encapsulate(lay * new Vector3((i & 1) == 0 ? b.min.x : b.max.x, (i & 2) == 0 ? b.min.y : b.max.y, (i & 4) == 0 ? b.min.z : b.max.z));
+                var tilt = Quaternion.Euler(behind - Grips.BookTilt(held), 0f, 0f);
+                return frame * (BookHandsInView(fov, Grips.BookReach(held)) - tilt * new Vector3(laid.center.x, laid.min.y - Grips.PalmHalfThickness, laid.center.z));
+            }
+        }
+        // Furniture is placed on the floor in front of the body (UpdateHold); its
+        // offset's z is how far ahead, so it must not turn with the look.
+        if (profile == Grips.Profile.Furniture)
+            return HoldOffsetFor(held.Category);
+        var wrist = Grips.RightWristLocal(held);
+        if (wrist == null)
+            return frame * HoldOffsetFor(held.Category);
+        // Paper turns with the view (tipped back 4 degrees); anything else hangs level
+        // from the hand. Turn the wrist offset into the hold frame accordingly.
+        var turn = held.Category == PropCategory.Paper ? Quaternion.Euler(behind + 4f, 0f, 0f) : Quaternion.Euler(-pitch * follow, 0f, 0f);
+        return frame * (OneHandInView(fov) - turn * wrist.Value);
+    }
+
+    /// The right wrist's place for a one-handed carry: low on the right, just inside the frame.
+    public static Vector3 OneHandInView(float verticalFov)
+    {
+        const float forward = 0.42f, side = 0.19f, margin = 7f;
+        float angle = Mathf.Max(5f, verticalFov * 0.5f - margin) * Mathf.Deg2Rad;
+        return new Vector3(side, Mathf.Clamp(-Mathf.Tan(angle) * forward, -0.32f, -0.1f), forward);
+    }
+
+    /// Where the middle of a held book's underside goes: low in the middle, its
+    /// palms just inside the bottom of the frame.
+    public static Vector3 BookHandsInView(float verticalFov, float forward)
+    {
+        const float margin = 5f;
+        float angle = Mathf.Max(5f, verticalFov * 0.5f - margin) * Mathf.Deg2Rad;
+        return new Vector3(0f, Mathf.Clamp(-Mathf.Tan(angle) * forward, -0.3f, -0.1f), forward);
+    }
+
+    /// A wide thing (a tray, a cake layer) in both hands, high enough that the hands
+    /// on its sides sit just inside the bottom of the view whatever the field of
+    /// view, but with its top kept below the line of sight: a flat tray comes up
+    /// to where you see your thumbs on its rim, a tall cake stays low with its top
+    /// in view. Held at a fixed low height, a tray was below the frame entirely.
+    public static Vector3 WideHoldOffset(Bounds local, float verticalFov)
+    {
+        const float forward = 0.46f, margin = 4f, topBelowEye = 0.1f;
+        float handsZ = forward + local.center.z + 0.02f;
+        float angle = Mathf.Max(5f, verticalFov * 0.5f - margin) * Mathf.Deg2Rad;
+        // The hands sit at the bottom of the thing: put that just inside the frame.
+        float handsVisible = -Mathf.Tan(angle) * handsZ - local.min.y;
+        float topClear = -topBelowEye - local.max.y;
+        float y = Mathf.Clamp(Mathf.Min(handsVisible, topClear), -0.42f, -0.15f);
+        return new Vector3(0f, y, forward);
+    }
 
     /// Keeps the carried thing on this side of walls: sweep its box from the eye to
     /// where it wants to be and pull it in (and lower) if something is in the way.
@@ -686,6 +770,8 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
             return;
         }
         HoldPoint.localRotation = Quaternion.identity;
+        if (held != null)
+            wanted = HoldOffset(held);
         if (held != null && held.Category == PropCategory.Furniture)
         {
             // Dragged at the feet in front of you, level, stopping short of walls.

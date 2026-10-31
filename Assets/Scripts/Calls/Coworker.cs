@@ -51,7 +51,7 @@ public class Coworker : MonoBehaviour
         _body = new GameObject($"{displayName}_Body").transform;
         _body.SetParent(transform, false);
         if (workers != null)
-            Avatar = WorkerAvatar.Create(workers, costumeSlot, WorkerCostumes.ForSlot(costumeSlot), _body);
+            Avatar = WorkerAvatar.Create(workers, costumeSlot, WorkerCostumes.Named(workerId) ?? WorkerCostumes.ForSlot(costumeSlot), _body);
     }
 
     void Start()

@@ -300,8 +300,9 @@ public static class CallCenterSceneBuilder
             lamp.name = "StatusLamp";
             Object.DestroyImmediate(lamp.GetComponent<Collider>());
             lamp.transform.SetParent(t, false);
-            lamp.transform.position = L(0.24f, 1.16f, -0.19f);
-            lamp.transform.localScale = Vector3.one * 0.07f;
+            // On top of the monitor's corner, not sunk into its screen.
+            lamp.transform.position = L(0.23f, 1.285f, -0.19f);
+            lamp.transform.localScale = Vector3.one * 0.055f;
             lamp.GetComponent<MeshRenderer>().sharedMaterial = lampMat;
             lamp.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
             var phone = deskGo.AddComponent<DeskPhone>();
@@ -354,17 +355,34 @@ public static class CallCenterSceneBuilder
         Place(string.Format(Office, "office_desk"), new Vector3(4.9f, 0f, 3.9f), 180f, back);
         Place(string.Format(Office, "flat_monitor"), new Vector3(4.9f, 0.75f, 4.08f), 180f, back, false);
         Place(string.Format(Flat, "desk_chair"), new Vector3(4.9f, 0f, 3.15f), 0f, back);
-        Place(string.Format(Office, "whiteboard"), new Vector3(1.6f, 1.05f, HalfZ - 0.1f), 180f, back, false);
-        Sign("WhiteboardText", "sign_whiteboard", new Vector3(1.6f, 1.55f, HalfZ - 0.13f), 0f, 1.45f, back);
+        // On the solid wall between the east window (x 0.85 to 2.15) and the supervisor's desk.
+        const float boardX = 3.4f;
+        Place(string.Format(Office, "whiteboard"), new Vector3(boardX, 1.05f, HalfZ - 0.1f), 180f, back, false);
+        Sign("WhiteboardText", "sign_whiteboard", new Vector3(boardX, 1.55f, HalfZ - 0.13f), 0f, 1.45f, back);
 
         // Reference shelf (binders) and the printer, west wall.
+        // One binder per help page, each in its own slot, spines toward the room
+        // (the binder's spine is its model front; turned 90 they stand side by side).
         var shelfDesk = Place(string.Format(Office, "office_desk"), new Vector3(-6.4f, 0f, 1.4f), 90f, back);
-        var colours = new[] { "red", "blue", "green", "yellow", "blue", "red" };
-        for (int i = 0; i < colours.Length; i++)
-            Place(string.Format(Office, "binder_" + colours[i]), new Vector3(-6.55f, 0.75f, 0.85f + i * 0.09f), 0f, back, false);
-        var shelfGo = shelfDesk;
-        var shelf = shelfGo.AddComponent<ReferenceShelf>();
-        shelf.SetEntityId("reference_shelf");
+        var ghost = GameplaySceneSetup.TransparentUnlit("Socket ghost", new Color(0.4f, 1f, 0.7f, 0.38f));
+        var books = new (string colour, string spine)[] { ("red", "spine_deliveries"), ("blue", "spine_plug"), ("green", "spine_dustbot"), ("yellow", "spine_refunds") };
+        var binders = new PickupProp[books.Length];
+        var slots = new PlacementSocket[books.Length];
+        for (int i = 0; i < books.Length; i++)
+        {
+            string page = CaseLibrary.HelpPages[i].title;
+            string kind = "binder_" + ReferenceShelf.Slug(page);
+            var at = new Vector3(-6.55f, 0.752f, 1.05f + i * 0.13f);
+            var binder = GameplaySceneSetup.MakeProp($"binder_{i}", kind, $"the {page} binder", string.Format(Office, "binder_" + books[i].colour), at, 90f, 0.6f, back, PropCategory.Small);
+            var label = Sign("SpineLabel", books[i].spine, Vector3.zero, 0f, 0.046f, binder.transform);
+            label.transform.localPosition = new Vector3(0f, 0.15f, 0.1335f);
+            label.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            binders[i] = binder;
+            var slot = GameplaySceneSetup.MakeSocket($"binder_slot_{i}", $"the {page} slot", kind, "", 0.05f, at, null, ghost, back, 90f);
+            slot.ConfigureTrigger(new Vector3(0.11f, 0.34f, 0.3f), new Vector3(0f, 0.17f, 0f));
+            slots[i] = slot;
+        }
+        shelfDesk.AddComponent<ReferenceShelf>().Configure(binders, slots);
         Sign("ShelfLabel", "sign_reference", new Vector3(-6.07f, 0.64f, 1.4f), -90f, 0.42f, back);
 
         Place(string.Format(Office, "office_desk"), new Vector3(-6.4f, 0f, -1.1f), 90f, back);
@@ -374,6 +392,19 @@ public static class CallCenterSceneBuilder
         for (int i = 0; i < sheets.Length; i++)
             sheets[i] = GameplaySceneSetup.MakeProp($"printout_{i}", "printout", "a printout of the help pages", string.Format(Flat, "bill_sheet"),
                 new Vector3(-6.62f, 1.03f + i * 0.01f, -1.1f), 90f, 0.05f, back, PropCategory.Paper);
+        // The sheets share the rent bill's model; give them their own printed face (the
+        // help pages, Tools/make_printout_texture.py) instead of the bill's FINAL NOTICE.
+        var printout = Paint("Printout print", Color.white, 0.1f);
+        printout.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Art/Office/printout_print.png"));
+        foreach (var sheet in sheets)
+            foreach (var r in sheet.GetComponentsInChildren<Renderer>())
+            {
+                var mats = r.sharedMaterials;
+                for (int m = 0; m < mats.Length; m++)
+                    if (mats[m] != null && mats[m].name == "Bill print")
+                        mats[m] = printout;
+                r.sharedMaterials = mats;
+            }
         var printer = printerGo.AddComponent<OfficePrinter>();
         printer.SetEntityId("printer");
         printer.Configure(sheets, tray);

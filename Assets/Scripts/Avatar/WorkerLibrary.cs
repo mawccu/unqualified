@@ -11,6 +11,8 @@ public class WorkerLibrary : ScriptableObject
     [Tooltip("Index = player slot: host, sound, catering, runner.")]
     public GameObject[] models;
     public RuntimeAnimatorController controller;
+    [Tooltip("Per model (same index): its body mesh without the moustache (WorkerFaces).")]
+    public Mesh[] cleanShaven;
 
     [Header("First-person arms (segments, pivot at the joint, length along +Z)")]
     public GameObject armUpper;
@@ -22,4 +24,11 @@ public class WorkerLibrary : ScriptableObject
     public GameObject thumbTip;
 
     public GameObject ModelForSlot(int slot) => models[((slot % models.Length) + models.Length) % models.Length];
+
+    public Mesh CleanShavenForSlot(int slot)
+    {
+        if (cleanShaven == null || cleanShaven.Length != models.Length)
+            return null;
+        return cleanShaven[((slot % models.Length) + models.Length) % models.Length];
+    }
 }

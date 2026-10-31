@@ -218,8 +218,8 @@ public static partial class ApartmentSceneBuilder
         Place(P("fridge"), new Vector3(3.55f, 0f, 2.58f), 180f, f);
         Place(P("microwave"), new Vector3(1.9f, 0.9f, 2.68f), 180f, f);
         // Out of the way of the workshop opening.
-        Place(P("trash_bag"), new Vector3(-0.2f, 0f, -2.6f), 0f, f);
-        Place(P("trash_bag"), new Vector3(0.25f, 0f, -2.72f), 50f, f);
+        Place(P("trash_bag"), new Vector3(-0.35f, 0f, -2.6f), 0f, f);
+        Place(P("trash_bag"), new Vector3(0.3f, 0f, -2.68f), 50f, f);
         Place(P("dead_plant"), new Vector3(-3.6f, 0f, -0.1f), 0f, f);
         Window(f);
         var bulb = Place(P("bare_bulb"), new Vector3(0f, Height, 0f), 0f, f, false);

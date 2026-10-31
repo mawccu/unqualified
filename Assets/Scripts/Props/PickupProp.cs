@@ -76,6 +76,8 @@ public class PickupProp : MonoBehaviour
     Transform _holdTarget;
     Func<Pose> _npcPose;
     float _heldYaw;
+    Transform _holdBody;
+    Vector3 _lastBodyPosition;
     Vector3 _lastHoldPosition;
     Vector2 _tilt, _tiltVelocity;
     Pose _blendFrom, _placeTarget;
@@ -222,8 +224,14 @@ public class PickupProp : MonoBehaviour
         Vector3 local = Quaternion.Inverse(Quaternion.Euler(0f, yaw, 0f)) * seen;
         _stabilized = Mathf.MoveTowards(_stabilized, Mathf.Clamp01(Stabilizer), dt);
         float sway = (category == PropCategory.Wide ? 1.4f : 1f) * (1f - 0.55f * _stabilized);
+        // Wobble comes from how the carrier moves (starts, stops, turns, running), not
+        // from where they look: the hold point rides on the head, and nodding counted
+        // as shaking the tray until it slipped.
+        Vector3 body = _holdBody != null ? _holdBody.position : target;
+        Vector3 bodyVelocity = (body - _lastBodyPosition) / dt;
+        _lastBodyPosition = body;
         if (category == PropCategory.Wide)
-            UpdateWobble(seen, yaw, dt);
+            UpdateWobble(bodyVelocity, yaw, dt);
         // Moving forward leans the top back; moving sideways leans it the other way.
         var wanted = new Vector2(Mathf.Clamp(-local.z * 0.03f * sway, -0.2f, 0.2f), Mathf.Clamp(local.x * 0.04f * sway, -0.2f, 0.2f));
         _tiltVelocity += (TiltStiffness * (wanted - _tilt) - TiltDamping * _tiltVelocity) * dt;
@@ -242,6 +250,13 @@ public class PickupProp : MonoBehaviour
             // Held up facing you, leaning back a little, with the same small lag.
             float pitch = _holdTarget.eulerAngles.x;
             rotation = Quaternion.Euler(pitch + 4f + _tilt.x * Mathf.Rad2Deg * 0.5f, _heldYaw, _tilt.y * Mathf.Rad2Deg * 0.5f);
+        }
+        else if (Grips.ProfileOf(this) == Grips.Profile.Book)
+        {
+            // A book lies on both palms, cover up, leaning back toward you as you
+            // look at it (so it stays the same in view), with the same small lag.
+            float pitch = _holdTarget.eulerAngles.x;
+            rotation = Quaternion.Euler(pitch - Grips.BookTilt(this) + _tilt.x * Mathf.Rad2Deg * 0.5f, _heldYaw, _tilt.y * Mathf.Rad2Deg * 0.5f) * Grips.Lay(this);
         }
         else
             rotation = Quaternion.Euler(_tilt.x * Mathf.Rad2Deg, _heldYaw, _tilt.y * Mathf.Rad2Deg);
@@ -330,6 +345,10 @@ public class PickupProp : MonoBehaviour
         _lastYawSeen = target.eulerAngles.y;
         _heldYaw = target.eulerAngles.y;
         _lastHoldPosition = target.position;
+        // The carrier's body (the hold point rides on its head).
+        var carrier = target.GetComponentInParent<PlayerActor>();
+        _holdBody = carrier != null ? carrier.transform : null;
+        _lastBodyPosition = _holdBody != null ? _holdBody.position : target.position;
         _tilt = _tiltVelocity = Vector2.zero;
         HolderId = holder;
         SocketId = "";

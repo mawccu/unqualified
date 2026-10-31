@@ -43,7 +43,7 @@ public class Supervisor : MonoBehaviour
     {
         Walker = NpcWalker.Setup(gameObject, Speed);
         if (workers != null)
-            Avatar = WorkerAvatar.Create(workers, 0, WorkerCostumes.Coordinator, transform);
+            Avatar = WorkerAvatar.Create(workers, 0, WorkerCostumes.Supervisor, transform);
         Walker.Avatar = Avatar;
         Suspicion = gameObject.AddComponent<Suspicion>();
         // She learns from what she hears and reads, not by spotting objects.

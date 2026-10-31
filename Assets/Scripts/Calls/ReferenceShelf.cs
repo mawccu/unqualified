@@ -1,37 +1,46 @@
-using System.Linq;
 using UnityEngine;
 
 /// <summary>
-/// The shared reference shelf: the same help pages as the console, in binders,
-/// for anyone who wants to read them away from a screen. Walk away to put them back.
+/// The reference desk: one binder per help page (Deliveries, Smart plug lights,
+/// DustBot lights, Refunds), each standing in its own slot with its spine label
+/// toward the room. Pick one up to read it (the page shows while it is in your
+/// hand); put it back in its slot. Each binder is one object with one place, so
+/// they never pile into each other. The pages are the console's help pages.
 /// </summary>
-public class ReferenceShelf : Interactable
+public class ReferenceShelf : MonoBehaviour
 {
-    PlayerActor _reader;
+    [SerializeField] PickupProp[] binders;
+    [SerializeField] PlacementSocket[] slots;
 
-    public override string Prompt(IInteractionActor actor) => _reader != null ? "Put the binders back" : "Read the reference binders";
-    public override InteractionResult CanUse(IInteractionActor actor) => InteractionResult.Ok;
-
-    public override void Use(IInteractionActor actor)
+    public void Configure(PickupProp[] books, PlacementSocket[] places)
     {
-        var hud = GameSession.Instance.Hud;
-        if (_reader != null)
-        {
-            _reader = null;
-            hud.ShowDocument(null);
-            return;
-        }
-        _reader = actor as PlayerActor;
-        hud.ShowDocument("<size=13><color=#888888>BRIGHTLINE · AGENT REFERENCE</color></size>\n" +
-            string.Join("\n\n", CaseLibrary.HelpPages.Select(p => $"<b>{p.title}</b>\n<size=13>{p.body}</size>")));
+        binders = books;
+        slots = places;
     }
 
-    void Update()
+    void Start()
     {
-        if (_reader != null && DistanceFrom(_reader.transform.position) > 2.2f)
+        // Every binder starts standing in its own slot.
+        for (int i = 0; i < binders.Length && i < slots.Length; i++)
         {
-            _reader = null;
-            GameSession.Instance.Hud.ShowDocument(null);
+            if (!string.IsNullOrEmpty(binders[i].HolderId) || !string.IsNullOrEmpty(slots[i].OccupantId))
+                continue;
+            slots[i].SetOccupant(binders[i]);
+            binders[i].PlaceAt(slots[i].SnapPosition, slots[i].transform.rotation, slots[i].EntityId);
         }
     }
+
+    /// The page of a held binder, or null when it is not one.
+    public static string PageFor(PickupProp held)
+    {
+        if (held == null || !held.Kind.StartsWith("binder_"))
+            return null;
+        string title = held.Kind.Substring("binder_".Length);
+        foreach (var (pageTitle, body) in CaseLibrary.HelpPages)
+            if (Slug(pageTitle) == title)
+                return $"<size=13><color=#888888>BRIGHTLINE · AGENT REFERENCE</color></size>\n<size=22><b>{pageTitle}</b></size>\n\n{body}\n\n<size=12><color=#888888>Put it back in its slot on the reference desk.</color></size>";
+        return null;
+    }
+
+    public static string Slug(string title) => title.ToLowerInvariant().Replace(' ', '_');
 }

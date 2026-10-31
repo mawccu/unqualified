@@ -237,14 +237,23 @@ public class FirstPersonArms : MonoBehaviour
         return new Pose(pos, Quaternion.LookRotation(forward, up));
     }
 
-    static Vector3 ShoulderOffset(float side) => new(side * 0.17f, -0.22f, -0.05f);
+    /// How much of the head's up and down look the shoulders follow. They sit on the
+    /// torso, not the head: following it fully swung them back and up when looking
+    /// down, leaving the hands 9 to 14 cm short of a chair being dragged.
+    public static float ShoulderPitchFollow = 0.3f;
+
+    /// A shoulder in the world: below and just behind the eye, turned with the body
+    /// and only partly with the look.
+    public Vector3 Shoulder(float side)
+    {
+        var e = _cam.eulerAngles;
+        float pitch = Mathf.DeltaAngle(0f, e.x) * ShoulderPitchFollow;
+        return _cam.position + Quaternion.Euler(pitch, e.y, 0f) * new Vector3(side * 0.17f, -0.22f, -0.05f);
+    }
 
     /// How far a wrist target is beyond what the arm can reach (0 when reachable).
-    public float ShortBy(Side side, Vector3 wristWorld)
-    {
-        Vector3 shoulder = _cam.TransformPoint(ShoulderOffset(side == Side.Right ? 1f : -1f));
-        return Mathf.Max(0f, Vector3.Distance(shoulder, wristWorld) - Reach);
-    }
+    public float ShortBy(Side side, Vector3 wristWorld) =>
+        Mathf.Max(0f, Vector3.Distance(Shoulder(side == Side.Right ? 1f : -1f), wristWorld) - Reach);
 
     Pose ToCamera(Pose world) => new(_cam.InverseTransformPoint(world.position), Quaternion.Inverse(_cam.rotation) * world.rotation);
     Pose FromCamera(Pose local) => new(_cam.TransformPoint(local.position), _cam.rotation * local.rotation);
@@ -253,7 +262,7 @@ public class FirstPersonArms : MonoBehaviour
     void PlaceArm(Hand hand, Pose wrist)
     {
         float s = hand.SideSign;
-        Vector3 shoulder = _cam.TransformPoint(ShoulderOffset(s));
+        Vector3 shoulder = Shoulder(s);
         Vector3 toWrist = wrist.position - shoulder;
         float d = toWrist.magnitude;
         Vector3 dir = d > 1e-4f ? toWrist / d : _cam.forward;
@@ -281,8 +290,8 @@ public class FirstPersonArms : MonoBehaviour
             hand.FingerTip[i].localRotation = Quaternion.Euler(shape.Tip[i], 0f, 0f);
         }
         // The thumb points forward and out at rest and swings under the palm to oppose the fingers.
-        float yaw = thumbSide * Mathf.Lerp(40f, -8f, shape.ThumbAcross);
-        float pitch = Mathf.Lerp(18f, 42f, shape.ThumbAcross);
+        float yaw = thumbSide * (Mathf.Lerp(40f, -8f, shape.ThumbAcross) - shape.ThumbTurn);
+        float pitch = Mathf.Lerp(18f, 42f, shape.ThumbAcross) + shape.ThumbLift;
         float roll = -thumbSide * Mathf.Lerp(10f, 55f, shape.ThumbAcross);
         hand.ThumbBase.localRotation = Quaternion.Euler(pitch, yaw, roll);
         hand.ThumbTip.localRotation = Quaternion.Euler(shape.ThumbBend, 0f, 0f);

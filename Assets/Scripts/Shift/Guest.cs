@@ -69,6 +69,8 @@ public class Guest : Interactable
             Accent = new Color(0.9f, 0.8f, 0.4f),
             HairStyle = hair[look % hair.Length],
             Accessories = look % 2 == 0 ? new[] { "bow_tie" } : Array.Empty<string>(),
+            // Most guests are clean-shaven; a few keep the moustache.
+            Moustache = look % 4 == 1,
         };
     }
 

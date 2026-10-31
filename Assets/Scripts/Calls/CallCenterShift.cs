@@ -240,6 +240,8 @@ public class CallCenterShift : MonoBehaviour
         float shown = Mathf.Min(Clock, ShiftSeconds) / ShiftSeconds * 4f * 60f;   // 18:00 to 22:00
         hud.SetPhase(Current == Phase.Briefing ? "BRIEFING" : Current == Phase.WrapUp ? "WRAP UP" : "ON THE PHONES", $"{18 + (int)(shown / 60f)}:{(int)(shown % 60f):00}");
         hud.SetSuspicion(supervisor.Suspicion.Value, supervisor.Suspicion.State, supervisor.Doing, "Supervisor");
+        // A reference binder in your hand: its page.
+        hud.ShowPage(ReferenceShelf.PageFor(session.Player.HeldProp));
         _cardTimer -= Time.unscaledDeltaTime;
         if (_cardTimer > 0f)
             return;

@@ -46,7 +46,89 @@ public class WorkerAvatar : MonoBehaviour
         model.transform.localRotation = Quaternion.identity;
         var avatar = model.AddComponent<WorkerAvatar>();
         avatar.Setup(library.controller, costume);
+        // The face: the shared mesh has a moustache; characters without one get the clean copy.
+        var clean = costume.Moustache ? null : library.CleanShavenForSlot(slot);
+        if (clean != null)
+            foreach (var skinned in model.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+                if (skinned.name == "Worker")
+                    skinned.sharedMesh = clean;
+        avatar.AddExtras(costume);
         return avatar;
+    }
+
+    /// Rigid head pieces (a bun, hair puffs, glasses), placed in the bind pose and
+    /// parented to the head bone so every animation carries them.
+    void AddExtras(WorkerCostumes.Costume costume)
+    {
+        if (costume.Extras == null || costume.Extras.Length == 0)
+            return;
+        Transform head = null;
+        foreach (var t in GetComponentsInChildren<Transform>(true))
+            if (t.name == "Head")
+                head = t;
+        if (head == null)
+            return;
+        Material hairMat = null, detailMat = null;
+        foreach (var r in GetComponentsInChildren<Renderer>(true))
+            foreach (var m in r.sharedMaterials)
+            {
+                if (m == null) continue;
+                if (m.name == "Hair") hairMat ??= m;
+                if (m.name == "Detail") detailMat ??= m;
+            }
+        var block = new MaterialPropertyBlock();
+        void Piece(PrimitiveType type, Vector3 at, Vector3 size, Material mat, Color colour, Vector3 euler = default)
+        {
+            var go = GameObject.CreatePrimitive(type);
+            if (Application.isPlaying) Destroy(go.GetComponent<Collider>());
+            else DestroyImmediate(go.GetComponent<Collider>());
+            go.name = "Extra";
+            go.transform.SetParent(transform, false);
+            go.transform.localPosition = at;
+            go.transform.localRotation = Quaternion.Euler(euler);
+            go.transform.localScale = size;
+            go.transform.SetParent(head, true);
+            var r = go.GetComponent<MeshRenderer>();
+            if (mat != null)
+                r.sharedMaterial = mat;
+            block.SetColor("_BaseColor", colour);
+            r.SetPropertyBlock(block);
+            _renderers.Add(r);
+        }
+        foreach (var extra in costume.Extras)
+        {
+            switch (extra)
+            {
+                case "bun":
+                    Piece(PrimitiveType.Sphere, new Vector3(0f, 1.72f, -0.14f), new Vector3(0.19f, 0.16f, 0.16f), hairMat, costume.Hair);
+                    break;
+                case "puffs":
+                    Piece(PrimitiveType.Sphere, new Vector3(-0.19f, 1.63f, -0.07f), new Vector3(0.22f, 0.24f, 0.24f), hairMat, costume.Hair);
+                    Piece(PrimitiveType.Sphere, new Vector3(0.19f, 1.63f, -0.07f), new Vector3(0.22f, 0.24f, 0.24f), hairMat, costume.Hair);
+                    break;
+                case "glasses":
+                    // Rims just in front of the eyes (their front is z 0.19 to 0.20); the
+                    // temples run from each rim's outer hinge back to the ear, following
+                    // the head as it narrows (half-width 0.15 at z 0.12, 0.18 at the ear).
+                    var frame = new Color(0.12f, 0.12f, 0.14f);
+                    const float rimZ = 0.208f;
+                    foreach (float x in new[] { -0.085f, 0.085f })
+                    {
+                        float side = Mathf.Sign(x);
+                        Piece(PrimitiveType.Cube, new Vector3(x, 1.457f, rimZ), new Vector3(0.095f, 0.011f, 0.011f), detailMat, frame);
+                        Piece(PrimitiveType.Cube, new Vector3(x, 1.39f, rimZ), new Vector3(0.095f, 0.011f, 0.011f), detailMat, frame);
+                        Piece(PrimitiveType.Cube, new Vector3(x - 0.047f, 1.423f, rimZ), new Vector3(0.011f, 0.078f, 0.011f), detailMat, frame);
+                        Piece(PrimitiveType.Cube, new Vector3(x + 0.047f, 1.423f, rimZ), new Vector3(0.011f, 0.078f, 0.011f), detailMat, frame);
+                        var hinge = new Vector3(side * 0.137f, 1.45f, rimZ - 0.004f);
+                        var ear = new Vector3(side * 0.19f, 1.44f, -0.02f);
+                        var along = ear - hinge;
+                        Piece(PrimitiveType.Cube, (hinge + ear) * 0.5f, new Vector3(0.009f, 0.009f, along.magnitude), detailMat, frame,
+                            Quaternion.LookRotation(along).eulerAngles);
+                    }
+                    Piece(PrimitiveType.Cube, new Vector3(0f, 1.45f, rimZ + 0.006f), new Vector3(0.06f, 0.01f, 0.01f), detailMat, frame);
+                    break;
+            }
+        }
     }
 
     void Setup(RuntimeAnimatorController controller, WorkerCostumes.Costume costume)

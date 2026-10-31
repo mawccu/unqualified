@@ -217,6 +217,7 @@ public static partial class GameplaySceneSetup
         }
         library.models = WorkerModels.Select(m => AssetDatabase.LoadAssetAtPath<GameObject>($"Assets/Art/Characters/{m}.fbx")).ToArray();
         library.controller = controller;
+        library.cleanShaven = library.models.Select(m => m != null ? WorkerFaces.BuildCleanShaven(m) : null).ToArray();
         GameObject Part(string n) => AssetDatabase.LoadAssetAtPath<GameObject>($"Assets/Art/Hands/{n}.fbx");
         library.armUpper = Part("arm_upper");
         library.armForearm = Part("arm_forearm");
