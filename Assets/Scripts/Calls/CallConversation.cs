@@ -93,9 +93,13 @@ public static class CallConversation
         typed = (typed ?? "").Trim().TrimStart('#');
         record = "";
         if (typed == "")
-            return "Type the order number into the search box.";
+            return call.Facts.Contains("order_heard")
+                ? "The search box is empty. Type the order number they gave you, or press \"Use in search\" beside it."
+                : "The search box is empty. Ask the customer for their order number first.";
         if (typed != call.Def.OrderId)
-            return $"No order {typed} found.";
+            return call.Facts.Contains("order_heard")
+                ? $"Searched for order {typed}: no such order. Check it against the number the customer gave (in the case summary)."
+                : $"Searched for order {typed}: no such order. You haven't asked the customer for their order number yet.";
         call.Facts.Add("order_found");
         call.Note($"Looked up order {call.Def.OrderId}");
         record = call.Def.Record;
@@ -204,6 +208,27 @@ public static class CallConversation
         router.End(call, CallOutcome.Resolved);
         return "";
     }
+
+    /// The phone's End button. Ending is not resolving: a fixed call closes as
+    /// resolved (the customer is happy to go); an unfixed one is dropped, which
+    /// counts against you like a customer hanging up.
+    public static string EndCall(CallRouter router, CallCase call, string agent)
+    {
+        if (call.Resolved)
+        {
+            call.Say("agent", agent, "close", "Is there anything else I can help with?");
+            call.CustomerSays("confirm_happy", agent);
+            router.End(call, CallOutcome.Resolved);
+            return "";
+        }
+        call.Say("agent", agent, "end", "I'm going to have to end the call here. Goodbye.");
+        call.Note("Ended the call with the problem unfixed");
+        router.End(call, CallOutcome.Dropped);
+        return "";
+    }
+
+    /// What a muted agent cannot do: anything the customer would have to hear.
+    public static bool NeedsVoice(string intent) => intent is "greet" or "ask_order" or "ask" or "apologise" or "promise" or "close" or "close_anyway" or "escalate";
 
     /// Writes "resolved" on a call that is not. The record will not agree for long.
     public static string CloseAnyway(CallRouter router, CallCase call, string agent)

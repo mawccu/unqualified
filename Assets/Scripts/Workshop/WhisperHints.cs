@@ -87,7 +87,7 @@ public static class WhisperHints
     }
 
     /// The line of the order record that stands out (already on your screen once you looked it up).
-    static string RecordFlag(CaseDefinition def)
+    public static string RecordFlag(CaseDefinition def)
     {
         var lines = def.Record.Split('\n');
         // The system shouts what matters ("NOT collected", "HELD at"): a word in capitals.

@@ -67,9 +67,11 @@ public static class GameSettings
         }
     }
 
-    /// Show an English translation under customers' lines on calls. Separate from
-    /// the interface language (which is English); off by default, because the
-    /// languages on your CV are the point.
+    /// Accessibility: translated call captions (English under customers' lines,
+    /// labelled "Caption"). Separate from the interface language and from any
+    /// gadget; off by default, because the languages on your CV are the point.
+    /// It used to be a toggle in the call screen's toolbar (also off by default),
+    /// so a stored "on" is a choice the player made and is kept.
     public static bool TranslateCalls
     {
         get => PlayerPrefs.GetInt("translate_calls", 0) == 1;

@@ -23,6 +23,7 @@ public class GadgetTests
         crew.job = job;
         crew.hired = true;
         crew.billReceived = true;
+        crew.callTrainingDone = true;
         crew.gadgets.Add(new GadgetInstance { id = "G-TEST", recipe = recipe, charge = charge });
         WorkshopLedger.Equip(crew, "G-TEST", GameSession.OfflineActor);
     }
@@ -207,6 +208,7 @@ public class GadgetTests
         var crew = CrewState.Current;
         crew.job = Jobs.CallCenter;
         crew.hired = true;
+        crew.callTrainingDone = true;
         crew.SetLanguages(GameSession.OfflineActor, new[] { CallLanguage.Arabic });
         yield return Load(GameSession.CallCenterScene);
         Assert.IsNull(GadgetKit.Instance, "nothing packed, nothing attached");

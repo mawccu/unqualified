@@ -234,8 +234,7 @@ public class PickupProp : MonoBehaviour
             UpdateWobble(bodyVelocity, yaw, dt);
         // Moving forward leans the top back; moving sideways leans it the other way.
         var wanted = new Vector2(Mathf.Clamp(-local.z * 0.03f * sway, -0.2f, 0.2f), Mathf.Clamp(local.x * 0.04f * sway, -0.2f, 0.2f));
-        _tiltVelocity += (TiltStiffness * (wanted - _tilt) - TiltDamping * _tiltVelocity) * dt;
-        _tilt += _tiltVelocity * dt;
+        Spring.Step(ref _tilt, ref _tiltVelocity, wanted, TiltStiffness, TiltDamping, dt);
 
         Quaternion rotation;
         if (category == PropCategory.Furniture)

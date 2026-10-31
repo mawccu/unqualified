@@ -16,6 +16,10 @@ Where the game's assets come from. There was no register before this pass. It li
 | Apartment props | `Tools/Blender/make_apartment_props.py` | `Assets/Art/Apartment` |
 | Hands | `Tools/Blender/make_hands.py` | `Assets/Art/Hands` |
 | Rent bill texture | `Tools/make_bill_texture.py` | `Assets/Art/Apartment/bill_print.png` |
+| Help-pages printout texture (quality gate) | `Tools/make_printout_texture.py` (reads the help pages from `CaseLibrary.cs`) | `Assets/Art/Office/printout_print.png`, material `Printout print` |
+| Binder spine labels (quality gate) | `Tools/make_binder_spines.py` | `Assets/Art/Office/spine_*.png` |
+| Clean-shaven worker bodies (quality gate) | Derived in the Editor from the four rigged workers (their licence row below applies) by `Assets/Editor/WorkerFaces.cs`: the same mesh without the two moustache pieces; rebuilt with the worker library | `Assets/Art/Characters/Faces/*_clean.asset` |
+| Head extras: bun, hair puffs, glasses (quality gate) | Unity primitives placed at runtime by `WorkerAvatar.AddExtras` (no files) | none |
 | All sound effects | Synthesised at runtime in `ProceduralAudio.cs` and `Tones.cs` | No audio files |
 
 The signs and textures drawn with PIL use the Windows Arial and Comic Sans fonts to draw text into the images. The images are original; the font files are not shipped.

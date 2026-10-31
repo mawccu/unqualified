@@ -459,9 +459,8 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
             _feet.PlayOneShot(ProceduralAudio.Footstep, 0.4f);
         }
         _wasGrounded = grounded;
-        // A critically damped return from the landing dip.
-        _landDipVelocity += (-120f * _landDip - 22f * _landDipVelocity) * dt;
-        _landDip += _landDipVelocity * dt;
+        // A critically damped return from the landing dip (in short steps: see Spring).
+        Spring.Step(ref _landDip, ref _landDipVelocity, 0f, 120f, 22f, dt);
 
         float walk = Mathf.Clamp01(speed / WalkSpeed);
         float bob = Mathf.Sin(_stepPhase * 2f) * 0.009f * walk * GameSettings.CameraBob;

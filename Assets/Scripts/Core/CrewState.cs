@@ -51,6 +51,9 @@ public class CrewState
     /// Rent weeks paid, and late-fee extensions asked for this week.
     public int rentPaid;
     public int extensionsThisWeek;
+    /// The call center's guided first call has been done or skipped (it can be
+    /// replayed from the console's "How does this work?").
+    public bool callTrainingDone;
 
     static CrewState _current;
 

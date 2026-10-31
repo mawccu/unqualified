@@ -17,6 +17,8 @@ public class CallCenterTests
         var crew = CrewState.Current;
         crew.job = Jobs.CallCenter;
         crew.hired = true;
+        // These tests are about routing and transfers; the training call has its own.
+        crew.callTrainingDone = true;
         crew.SetLanguages(GameSession.OfflineActor, new[] { CallLanguage.Spanish });
         SceneManager.LoadScene(GameSession.CallCenterScene);
         yield return null;

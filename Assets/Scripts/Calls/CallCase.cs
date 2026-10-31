@@ -2,7 +2,8 @@ using System.Collections.Generic;
 
 public enum CallState { Ringing, Queued, Active, OnHold, Ended }
 
-public enum CallOutcome { Open, Resolved, FakeClosure, HungUp, Escalated }
+/// HungUp: the customer gave up. Dropped: the agent ended the call with it unfixed.
+public enum CallOutcome { Open, Resolved, FakeClosure, HungUp, Escalated, Dropped }
 
 /// <summary>One line of a call as it happened. Customer lines keep their language.</summary>
 public sealed class TranscriptLine
@@ -62,8 +63,12 @@ public sealed class CallCase
     public string ActionTaken = "";
     public bool Apologised;
     public bool Muted;
-    /// Nobody on shift claimed this language: the console offers the phrase aid.
+    /// Nobody on shift claimed this language (the console offers its phrasebook:
+    /// general words and phrases, never a translation of the call).
     public bool PhraseAid;
+    /// The guided first call (English, reserved for the new agent, patient, and
+    /// ignored by the supervisor and the pay sheet).
+    public bool Training;
     /// A repeat call after a closure that did not fix anything.
     public bool Callback;
     public float RangAt, AnsweredAt, EndedAt;

@@ -97,6 +97,12 @@ public static class LaunchOptions
         foreach (var w in shift.Router.Workers)
             if (w.Simulated)
                 shift.Router.SetBreak(w.Id, true);
+        // Past the training call (it holds other languages back from a trainee).
+        if (shift.TrainingCall != null)
+        {
+            shift.SkipTraining();
+            yield return new WaitForSecondsRealtime(0.5f);
+        }
         var call = shift.Router.Ring(CaseLibrary.Get("delivery_kettle"), CallLanguage.Arabic);
         yield return null;
         shift.Do(shift.PlayerId, "answer");

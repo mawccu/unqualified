@@ -199,7 +199,9 @@ public class CallRoutingTests
         CallConversation.Greet(call, you.Id);
         CallConversation.AskOrder(call, you.Id);
         Assert.AreEqual("The system needs the order first. Look it up.", CallConversation.Act(call, you.Id, "rebook_voucher", "Rebook"));
-        StringAssert.StartsWith("No order", CallConversation.LookUp(call, you.Id, "48231", out _), "a typo finds nothing");
+        string typo = CallConversation.LookUp(call, you.Id, "48231", out _);
+        StringAssert.Contains("48231: no such order", typo, "a typo finds nothing, and says what was searched");
+        Assert.IsFalse(call.Facts.Contains("order_found"));
         Assert.AreEqual("", CallConversation.LookUp(call, you.Id, "48213", out var record));
         StringAssert.Contains("NOT collected", record);
         CallConversation.Ask(call, you.Id, "tracking");

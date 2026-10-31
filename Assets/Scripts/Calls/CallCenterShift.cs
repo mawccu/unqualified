@@ -45,6 +45,8 @@ public class CallCenterShift : MonoBehaviour
     public Supervisor Boss => supervisor;
     public IReadOnlyList<SupportDesk> Desks => desks;
     public IReadOnlyList<CallCase> Finished => _finished;
+    /// The guided first call, while it is live (null otherwise).
+    public CallCase TrainingCall => _training != null && _training.Live ? _training : null;
     /// The CV's lies: they set the pay grade and the heat (see CvLies).
     public int Lies { get; private set; }
     int Pay => CvLies.Pay(CrewState.CallCenterShiftPay, Lies);
@@ -58,6 +60,7 @@ public class CallCenterShift : MonoBehaviour
     readonly List<string> _notes = new();
     readonly Dictionary<string, SupportDesk> _deskOf = new();
     bool _paid, _started, _warned;
+    CallCase _training;
     int _next;
     float _wrapStarted, _cardTimer;
 
@@ -167,7 +170,7 @@ public class CallCenterShift : MonoBehaviour
         if (langs.Count > 0)
             yield return Say("Supervisor", $"Your CV says you're fluent in {string.Join(" and ", langs.Select(CallLanguage.Name))}. Those callers come to you.", 3.6f);
         else
-            yield return Say("Supervisor", "English only? Fine. If a caller doesn't speak it, use the phrase aid.", 3.4f);
+            yield return Say("Supervisor", "English only? Fine. If a caller doesn't speak it, there's a phrasebook on the console. Or pass them to someone who does.", 4f);
         if (crew.HasClaim(Claims.Technical))
             yield return Say("Supervisor", "And as our technical expert, you'll get the tricky ones.", 3f);
         if (crew.HasClaim(Claims.Service))
@@ -175,6 +178,8 @@ public class CallCenterShift : MonoBehaviour
         if (Lies >= 5)
             yield return Say("Supervisor", "Quite a CV. We hired you at a senior grade, so I'll expect senior work.", 3.4f);
         yield return Say("Supervisor", "Answer, find the order, fix it, close it. Don't promise what the system can't do.", 3.6f);
+        if (!crew.callTrainingDone)
+            yield return Say("Supervisor", "Your first call is a training call, in English. Take your time with it.", 3.4f);
         supervisor.ResumePatrol();
         Begin();
     }
@@ -186,6 +191,46 @@ public class CallCenterShift : MonoBehaviour
         _started = true;
         Current = Phase.Calls;
         Clock = 0f;
+        if (!CrewState.Current.callTrainingDone)
+            StartTraining();
+    }
+
+    // The training call ----------------------------------------------------------------------
+
+    /// Rings the guided first call at the player's desk: English (whatever the CV
+    /// says), patient, reserved for them, not scored. Calls in other languages
+    /// wait for someone else until it is done or skipped. False when the player
+    /// is on a call already.
+    public bool StartTraining()
+    {
+        if (CallOf(PlayerId) != null || TrainingCall != null || Current != Phase.Calls)
+            return false;
+        Router.Worker(PlayerId).TrainingPending = true;
+        _training = Router.RingTraining(CaseLibrary.Get("delivery_kettle"), PlayerId);
+        session.Hud.ShowToast("Training call: your phone is ringing. Sit at your desk to answer it.");
+        Changed?.Invoke(_training);
+        return true;
+    }
+
+    public void SkipTraining()
+    {
+        if (TrainingCall != null)
+            Router.End(TrainingCall, CallOutcome.Open);
+        else
+            FinishTraining(false);
+    }
+
+    void FinishTraining(bool completed)
+    {
+        var me = Router.Worker(PlayerId);
+        if (me != null)
+            me.TrainingPending = false;
+        var crew = CrewState.Current;
+        crew.callTrainingDone = true;
+        crew.Save();
+        session.Hud.ShowToast(completed
+            ? "Training done. From now on the calls are real, and some may be in the languages on your CV."
+            : "Training skipped. Replay it any time from \"How does this work?\" on the console.");
     }
 
     IEnumerator Say(string speaker, string line, float seconds)
@@ -300,12 +345,21 @@ public class CallCenterShift : MonoBehaviour
                 desk?.PressButton(1);
                 break;
             case "transfer":
+                if (call.Training)
+                    return "This is your training call: stay with it, or skip the training.";
                 return TransferCall(workerId, call, arg);
+            case "end":
+                if (!live)
+                    return call.State == CallState.Ringing ? "It's still ringing. Answer it first." : "There's no call to end.";
+                result = CallConversation.EndCall(Router, call, workerId);
+                break;
             default:
                 if (!live)
                     return "Answer the call first.";
-                if (call.State == CallState.OnHold && intent != "colleague" && intent != "lookup")
+                if (call.State == CallState.OnHold && intent != "colleague" && intent != "lookup" && intent != "act")
                     return "They're on hold. Take them off hold first.";
+                if (call.Muted && CallConversation.NeedsVoice(intent))
+                    return "You're muted: they can't hear you. Unmute first.";
                 result = Talk(workerId, call, intent, arg, label);
                 break;
         }
@@ -317,6 +371,7 @@ public class CallCenterShift : MonoBehaviour
                 CallOutcome.Resolved => $"Call {call.Id} closed: resolved. Quality {CallConversation.Quality(call) * 100f:0}%.",
                 CallOutcome.FakeClosure => $"Call {call.Id} closed and marked resolved. It wasn't.",
                 CallOutcome.Escalated => $"Call {call.Id} escalated to second line.",
+                CallOutcome.Dropped => $"Call {call.Id} ended. It wasn't fixed.",
                 _ => $"Call {call.Id} ended.",
             };
         Witness(workerId, call, intent, attemptsBefore);
@@ -376,7 +431,8 @@ public class CallCenterShift : MonoBehaviour
     /// While the supervisor is listening in, she hears what happens.
     void Witness(string workerId, CallCase call, string intent, int attemptsBefore)
     {
-        if (workerId != PlayerId)
+        // Training is training: nobody is judged on it.
+        if (workerId != PlayerId || call.Training)
             return;
         bool listening = supervisor.ListeningTo == workerId;
         var s = supervisor.Suspicion;
@@ -399,6 +455,11 @@ public class CallCenterShift : MonoBehaviour
         }
         if (intent == "close" && call.Outcome == CallOutcome.Resolved && call.Attempts == 0)
             s.Ease(4f);
+        if (intent == "end" && call.Outcome == CallOutcome.Dropped)
+        {
+            s.Raise($"dropped_{call.Id}", "hung up on a customer with their problem unfixed", 10f);
+            supervisor.Remark("You can't just hang up on them.");
+        }
     }
 
     void OnEnded(CallCase call)
@@ -409,6 +470,11 @@ public class CallCenterShift : MonoBehaviour
         Changed?.Invoke(call);
         if (call.Owner != PlayerId)
             return;
+        if (call.Training)
+        {
+            FinishTraining(call.Outcome == CallOutcome.Resolved);
+            return;
+        }
         var me = Router.Worker(PlayerId);
         // A claimed skill that keeps failing is what gives a liar away.
         bool failed = call.Outcome != CallOutcome.Resolved || call.Attempts >= 2;
@@ -484,7 +550,8 @@ public class CallCenterShift : MonoBehaviour
         session.Hud.HideBanner();
         var crew = CrewState.Current;
         var me = Router.Worker(PlayerId);
-        var mine = _finished.Where(c => c.Owner == PlayerId).ToList();
+        // The training call is paid shift time but not scored.
+        var mine = _finished.Where(c => c.Owner == PlayerId && !c.Training).ToList();
         var bonuses = new List<(string, int)>();
         var deductions = new List<(string, int)>();
         int resolved = mine.Count(c => c.Outcome == CallOutcome.Resolved);
@@ -511,6 +578,8 @@ public class CallCenterShift : MonoBehaviour
         }
         int hung = mine.Count(c => c.Outcome == CallOutcome.HungUp);
         if (hung > 0) deductions.Add(($"{hung} customer(s) hung up on you", hung * 10));
+        int dropped = mine.Count(c => c.Outcome == CallOutcome.Dropped);
+        if (dropped > 0) deductions.Add(($"{dropped} call(s) you ended unfixed", dropped * 10));
         int fake = mine.Count(c => c.Outcome == CallOutcome.FakeClosure);
         if (fake > 0) deductions.Add(($"{fake} call(s) marked resolved that weren't", fake * 15));
         int promises = mine.Sum(c => c.Promises.Count(p => !p.Supported));

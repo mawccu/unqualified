@@ -102,7 +102,8 @@ public class Supervisor : MonoBehaviour
         if (Shift.Current == CallCenterShift.Phase.Calls && Shift.Clock >= _nextListen)
         {
             var call = Shift.CallOf(Shift.PlayerId);
-            if (call != null && (call.State == CallState.Active || call.State == CallState.OnHold))
+            // Not on the training call: she lets the new agent learn.
+            if (call != null && !call.Training && (call.State == CallState.Active || call.State == CallState.OnHold))
             {
                 StartCoroutine(ListenIn(Shift.PlayerId));
                 return;

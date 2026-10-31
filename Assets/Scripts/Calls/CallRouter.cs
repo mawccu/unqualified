@@ -16,6 +16,8 @@ public sealed class CallWorker
     public bool Simulated;
     public float LastAssignedAt = float.NegativeInfinity;
     public int Order;
+    /// Still to do the training call: no calls in other languages reach them yet.
+    public bool TrainingPending;
 
     public bool Speaks(string language) => Languages.Contains(language);
 }
@@ -43,6 +45,11 @@ public sealed class CallRouter
 
     // Patience lost per second in each state.
     public const float DrainWaiting = 0.006f, DrainHold = 0.01f, DrainActive = 0.0025f;
+    /// On hold, a customer waits this long patiently (slower than talking), then
+    /// gets restless fast. They complain a few seconds before it runs out.
+    public const float HoldAllowance = 30f;
+    /// A training call drains this fraction as fast.
+    public const float TrainingPatience = 0.15f;
 
     readonly List<CallWorker> _workers = new();
     readonly List<CallCase> _calls = new();
@@ -77,6 +84,18 @@ public sealed class CallRouter
 
     public bool IsFree(CallWorker w) => w.Online && !w.OnBreak && CallOf(w.Id) == null;
 
+    /// Seconds of patient waiting left on hold (0 once restless, or when not on hold).
+    public float HoldLeft(CallCase call) => call.State == CallState.OnHold ? Math.Max(0f, HoldAllowance - (Now - call.HoldSince)) : 0f;
+
+    /// The new agent's guided first call: English, reserved for them.
+    public CallCase RingTraining(CaseDefinition def, string traineeId)
+    {
+        var call = new CallCase(++_nextCall, def, CallLanguage.English, Now) { State = CallState.Queued, Training = true, ReservedFor = traineeId };
+        _calls.Add(call);
+        Route();
+        return call;
+    }
+
     public IEnumerable<CallCase> Waiting => _calls.Where(c => c.Live && c.Owner == "").OrderBy(c => c.RangAt);
 
     /// Somebody new calls in.
@@ -92,6 +111,9 @@ public sealed class CallRouter
     public List<CallWorker> Eligible(CallCase call, out bool phraseAid)
     {
         var online = _workers.Where(w => w.Online).ToList();
+        // A new agent gets the basics in English before any other language.
+        if (call.RoutedLanguage != CallLanguage.English)
+            online = online.Where(w => !w.TrainingPending).ToList();
         var speakers = online.Where(w => w.Speaks(call.RoutedLanguage)).ToList();
         phraseAid = speakers.Count == 0;
         var pool = phraseAid ? online : speakers;
@@ -138,7 +160,9 @@ public sealed class CallRouter
     void Assign(CallCase call, CallWorker worker)
     {
         call.Owner = worker.Id;
-        call.ReservedFor = "";
+        // A training call stays with its trainee, whoever else is free.
+        if (!call.Training)
+            call.ReservedFor = "";
         call.State = CallState.Ringing;
         call.RangAt = Now;
         worker.LastAssignedAt = Now;
@@ -282,9 +306,11 @@ public sealed class CallRouter
             float drain = call.State switch
             {
                 CallState.Active => DrainActive,
-                CallState.OnHold => DrainHold,
+                CallState.OnHold => HoldLeft(call) > 0f ? DrainActive * 0.5f : DrainHold * 1.5f,
                 _ => DrainWaiting,
             };
+            if (call.Training)
+                drain *= TrainingPatience;
             call.Patience = Math.Max(0f, call.Patience - drain * Impatience * dt);
             if (call.Patience <= 0f)
             {
@@ -294,7 +320,7 @@ public sealed class CallRouter
                 continue;
             }
             // Nobody picked up: offer it to the next person in the rotation.
-            if (call.State == CallState.Ringing && Now - call.RangAt > RingTimeout)
+            if (call.State == CallState.Ringing && !call.Training && Now - call.RangAt > RingTimeout)
             {
                 var worker = Worker(call.Owner);
                 var pool = Eligible(call, out _);
