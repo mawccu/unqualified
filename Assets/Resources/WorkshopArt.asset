@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2b91b745adf32554c9dff33622dbb357, type: 3}
+  m_Name: WorkshopArt
+  m_EditorClassIdentifier: Unqualified::WorkshopArt
+  parts:
+  - id: casing
+    model: {fileID: 919132149155446097, guid: b31e636e8a6b7c746987221077fa87f9, type: 3}
+  - id: board
+    model: {fileID: 919132149155446097, guid: 225c1b187a3500540aaa85c625ad2ffe, type: 3}
+  - id: battery
+    model: {fileID: 919132149155446097, guid: f84ac88125d77e54cbc93a49d13d1902, type: 3}
+  - id: sensor
+    model: {fileID: 919132149155446097, guid: 9111c1826f077684c8455c37bf10d2ca, type: 3}
+  - id: motor
+    model: {fileID: 919132149155446097, guid: 386d8c386cc397e4689175ec0c0166fa, type: 3}
+  - id: speaker
+    model: {fileID: 919132149155446097, guid: e154d13f7c70cc04582a54a7f0fc90b3, type: 3}
+  gadgets:
+  - id: whisperbox
+    model: {fileID: 919132149155446097, guid: 6af66def7aff72e498c238e3bbf1f589, type: 3}
+  - id: steadyhand
+    model: {fileID: 919132149155446097, guid: 3911b28d4646ed146bad501f9a2400c2, type: 3}
+  parcel: {fileID: 919132149155446097, guid: 5e67b91df2b7c34478f764328233b1e1, type: 3}
+  parcelOpen: {fileID: 919132149155446097, guid: 00e92e20913eb304cba1c412f5158be2, type: 3}
+  lid: {fileID: 919132149155446097, guid: 83c6bb62aa915964f93e11bd7628b2b5, type: 3}
+  led: {fileID: 2100000, guid: 381766e8e9bb01042965e74ce42b1ba9, type: 2}
+  labelFont: {fileID: 0}
+  text: {fileID: 2100000, guid: f775cf9c0c4e6c84e93136d8b32313ef, type: 2}

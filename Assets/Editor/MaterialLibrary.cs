@@ -16,7 +16,7 @@ public static class MaterialLibrary
 {
     const string MaterialsFolder = "Assets/Art/Materials";
     const string TexturesFolder = "Assets/Art/Textures";
-    static readonly string[] ModelFolders = { "Assets/Art/Models", "Assets/Art/Characters", "Assets/Art/Apartment", "Assets/Art/Hands", "Assets/Art/Props" };
+    static readonly string[] ModelFolders = { "Assets/Art/Models", "Assets/Art/Characters", "Assets/Art/Apartment", "Assets/Art/Hands", "Assets/Art/Props", "Assets/Art/Workshop" };
 
     /// Material name in the pack -> texture set, tiling (models have 1 UV unit = 1 metre),
     /// metallic, and how much of the set's own smoothness to keep (a waxed floor at
@@ -69,7 +69,10 @@ public static class MaterialLibrary
                 mat.SetFloat("_Metallic", 0f);
                 mat.SetFloat("_Smoothness", 0.3f);
             }
-            mat.shader = lit;
+            // Only switch shaders that need it: reassigning Lit resets a material's
+            // surface setup (a transparent one comes back opaque).
+            if (mat.shader != lit)
+                mat.shader = lit;
             if (Textured.TryGetValue(pair.Key, out var tex))
                 ApplyTextureSet(mat, tex.set, tex.tiling, tex.metallic, tex.gloss);
             EditorUtility.SetDirty(mat);

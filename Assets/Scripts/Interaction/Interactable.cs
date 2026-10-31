@@ -24,6 +24,9 @@ public abstract class Interactable : MonoBehaviour
     /// Above 0: the player holds E this long (with progress shown) before the use is sent.
     public virtual float HoldSeconds => 0f;
 
+    /// Where the held tool's working end goes while E is held (a screw head), or null to just work in front of you.
+    public virtual Vector3? WorkPoint => null;
+
     /// Shown when CanUse says NotNow. Empty means stay quiet.
     public virtual string BlockedReason(IInteractionActor actor) => "";
 

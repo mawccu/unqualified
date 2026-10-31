@@ -39,8 +39,50 @@ public class SupportConsole : MonoBehaviour
     float _refresh;
 
     public bool IsOpen => _window != null && _window.style.display == DisplayStyle.Flex;
+    public static SupportConsole Instance { get; private set; }
+
+    // The WhisperBox's last hint, shown in a strip over the company system.
+    VisualElement _whisper;
+    Label _whisperText, _whisperWords;
+    string _highlightPage;
+    int _whisperCall = -1;
 
     public void Configure(Hud owner) => hud = owner;
+
+    void Awake() => Instance = this;
+
+    /// A hint from the WhisperBox for the call on screen: shown until the call changes.
+    public void ShowWhisper(WhisperHints.Hint hint)
+    {
+        if (_window == null)
+            return;
+        var call = Call;
+        _whisperCall = call?.Id ?? -1;
+        _whisperText.text = "<b>WHISPERBOX</b> (in your ear):  " + hint.Text;
+        _whisperWords.style.display = hint.Words != null ? DisplayStyle.Flex : DisplayStyle.None;
+        if (hint.Words != null)
+        {
+            _whisperWords.text = $"{hint.Words}  =  {hint.WordsEnglish}";
+            Hud.SetLanguage(_whisperWords, hint.WordsLanguage);
+        }
+        _whisper.style.display = DisplayStyle.Flex;
+        _highlightPage = hint.Page;
+        if (hint.Page != null)
+            _tab = "help";
+        Redraw(true);
+    }
+
+    void HideWhisperIfStale()
+    {
+        if (_whisper == null || _whisper.style.display == DisplayStyle.None)
+            return;
+        var call = Call;
+        if (call == null || call.Id != _whisperCall)
+        {
+            _whisper.style.display = DisplayStyle.None;
+            _highlightPage = null;
+        }
+    }
 
     static CallCenterShift Shift => CallCenterShift.Instance;
     string Me => _desk != null ? _desk.WorkerId : GameSession.OfflineActor;
@@ -79,6 +121,8 @@ public class SupportConsole : MonoBehaviour
 
     void OnDestroy()
     {
+        if (Instance == this)
+            Instance = null;
         if (Shift != null)
             Shift.Changed -= OnChanged;
     }
@@ -227,6 +271,17 @@ public class SupportConsole : MonoBehaviour
             tab.name = "tab-" + id;
             tab.style.marginRight = 6;
         }
+        _whisper = new VisualElement();
+        _whisper.name = "whisper-strip";
+        _whisper.style.flexShrink = 0;
+        _whisper.style.backgroundColor = new Color(0.3f, 0.2f, 0.45f);
+        Hud.Pad(_whisper, 7, 14);
+        _whisperText = Hud.Text(_whisper, "", 14, Color.white);
+        _whisperText.style.whiteSpace = WhiteSpace.Normal;
+        _whisperWords = Hud.Text(_whisper, "", 15, new Color(1f, 0.9f, 0.55f));
+        _whisperWords.style.marginTop = 2;
+        _whisper.style.display = DisplayStyle.None;
+        right.Add(_whisper);
         var systemScroll = new ScrollView(ScrollViewMode.Vertical);
         systemScroll.style.flexGrow = 1;
         systemScroll.style.minHeight = 0;
@@ -255,6 +310,7 @@ public class SupportConsole : MonoBehaviour
     {
         if (_window == null || Shift == null)
             return;
+        HideWhisperIfStale();
         var call = Call;
         _clock.text = $"Queue: {Shift.Router.Waiting.Count()}";
         _translate.text = GameSettings.TranslateCalls ? "☑ Translate customer" : "☐ Translate customer";
@@ -416,10 +472,21 @@ public class SupportConsole : MonoBehaviour
         {
             foreach (var (title, body) in CaseLibrary.HelpPages)
             {
-                var t = Hud.Text(_systemBody, title, 17, Brand);
+                var page = new VisualElement();
+                page.name = "help-" + title;
+                _systemBody.Add(page);
+                if (title == _highlightPage)
+                {
+                    // The page the WhisperBox pointed at.
+                    page.style.backgroundColor = new Color(1f, 0.95f, 0.7f);
+                    Hud.SetBorder(page, 2, new Color(0.3f, 0.2f, 0.45f));
+                    Hud.Round(page, 4);
+                    Hud.Pad(page, 4, 8);
+                }
+                var t = Hud.Text(page, title, 17, Brand);
                 t.style.unityFontStyleAndWeight = FontStyle.Bold;
                 t.style.marginTop = 6;
-                Hud.Text(_systemBody, body, 14, Body).style.marginBottom = 8;
+                Hud.Text(page, body, 14, Body).style.marginBottom = 8;
             }
             return;
         }

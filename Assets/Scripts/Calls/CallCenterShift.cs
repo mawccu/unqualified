@@ -105,6 +105,7 @@ public class CallCenterShift : MonoBehaviour
         };
         Router.Ended += OnEnded;
         BuildSchedule(crew);
+        GadgetKit.Attach(session, Jobs.CallCenter);
     }
 
     void OnDestroy()
@@ -463,6 +464,7 @@ public class CallCenterShift : MonoBehaviour
         _paid = true;
         Current = Phase.Exposed;
         StopAllCoroutines();
+        GadgetKit.Instance?.ShiftOver();
         var lines = new List<string> { "<size=28><b><color=#FF6B5B>LET GO</color></b></size>", "The supervisor has heard enough.\n", "<b>What she noticed:</b>" };
         foreach (var i in supervisor.Suspicion.Witnessed)
             lines.Add($"·  {i.What}");
@@ -519,6 +521,9 @@ public class CallCenterShift : MonoBehaviour
         int pay = Mathf.Max(0, Pay - deducted + earned);
         crew.savings += pay;
         crew.shiftsCompleted++;
+        if (WorkshopLedger.GiveStarterKit(crew))
+            _notes.Add("A text from your cousin Dev: \"Left a box of salvaged parts at your door. Build something with it.\"");
+        GadgetKit.Instance?.ShiftOver();
         crew.Save();
 
         var lines = new List<string>
@@ -545,7 +550,7 @@ public class CallCenterShift : MonoBehaviour
         foreach (var desk in desks)
             if (desk.Occupied)
                 desk.StandUp();
-        session.Hud.ShowPayout(text, GoHome, Retry);
+        session.Hud.ShowPayout(text, GoHome, Retry, Current == Phase.Payout ? "Work tomorrow's shift too (skip home)" : "Try this shift again");
         session.Player.WantsCursor = true;
         session.RefreshCursor();
     }
@@ -560,9 +565,24 @@ public class CallCenterShift : MonoBehaviour
         session.TravelTo(GameSession.ApartmentScene, 0.8f);
     }
 
+    /// Work again: after a paid shift that is tomorrow's shift (a new day, a day
+    /// closer to the rent), straight home instead if the rent is due. After being
+    /// exposed it is the same evening again, unpaid.
     void Retry()
     {
         session.Player.WantsCursor = false;
+        if (Current == Phase.Payout)
+        {
+            var crew = CrewState.Current;
+            crew.day++;
+            crew.daysLeft = Mathf.Max(0, crew.daysLeft - 1);
+            crew.Save();
+            if (WorkshopLedger.RentOverdue(crew))
+            {
+                session.TravelTo(GameSession.ApartmentScene, 0.8f);
+                return;
+            }
+        }
         session.TravelTo(GameSession.CallCenterScene, 0.6f);
     }
 

@@ -93,6 +93,36 @@ public static class ProceduralAudio
         return Mathf.Sin(2f * Mathf.PI * f * t) * Mathf.Exp(-t * 28f) * 0.35f;
     });
 
+    static AudioClip _chirp, _hum, _ratchet, _beep, _buzz, _tear;
+
+    /// A homemade earpiece confirming a hint: two tiny, too-loud beeps.
+    public static AudioClip Chirp => _chirp ??= Make("chirp", 0.22f, t =>
+        (t < 0.07f || (t > 0.12f && t < 0.19f) ? Mathf.Sin(2f * Mathf.PI * 3200f * t) : 0f) * 0.3f);
+
+    /// A small motor working hard under a tray (loops; volume follows the effort).
+    public static AudioClip Hum => _hum ??= Make("hum", 1f, t =>
+        (Mathf.Sin(2f * Mathf.PI * 180f * t) * 0.5f + Mathf.Sin(2f * Mathf.PI * 360f * t + Mathf.Sin(2f * Mathf.PI * 7f * t)) * 0.3f
+        + (Random.value * 2f - 1f) * 0.08f) * 0.35f);
+
+    /// A screw being driven home: quick ratchet clicks.
+    public static AudioClip Ratchet => _ratchet ??= Make("ratchet", 0.5f, t =>
+    {
+        float phase = t * 22f % 1f;
+        return (Random.value * 2f - 1f) * Mathf.Exp(-phase * 30f) * 0.35f;
+    });
+
+    /// The test jig's OK.
+    public static AudioClip Beep => _beep ??= Make("beep", 0.35f, t =>
+        Mathf.Sin(2f * Mathf.PI * (t < 0.15f ? 880f : 1320f) * t) * Mathf.Min(1f, (0.35f - t) * 20f) * 0.25f);
+
+    /// The test jig's fault: a low double buzz.
+    public static AudioClip Buzz => _buzz ??= Make("buzz", 0.45f, t =>
+        (Mathf.Sin(2f * Mathf.PI * 150f * t) > 0f ? 1f : -1f) * (t < 0.18f || t > 0.26f ? 0.12f : 0f));
+
+    /// Packing tape ripped off a cardboard box.
+    public static AudioClip Tear => _tear ??= Make("tear", 0.5f, t =>
+        (Random.value * 2f - 1f) * (0.5f + 0.5f * Mathf.Sin(t * 90f)) * Mathf.Sin(Mathf.PI * t / 0.5f) * 0.3f);
+
     static float Thump(float t)
     {
         if (t < 0f)

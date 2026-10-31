@@ -23,7 +23,7 @@ public partial class Hud : MonoBehaviour
     public event Action ResumeRequested, RestartRequested, NewGameRequested, QuitRequested;
 
     VisualElement _root, _crosshair, _ring, _card, _cardBody, _menu, _banner, _document, _fade, _subtitleBox, _overlay;
-    Label _prompt, _toast, _status, _stats, _sensitivityValue, _fovValue, _bobValue, _eyebrow, _title, _bannerTitle, _bannerText;
+    Label _prompt, _toast, _status, _stats, _sensitivityValue, _fovValue, _bobValue, _gadgetKeyValue, _eyebrow, _title, _bannerTitle, _bannerText;
     Label _subtitleSpeaker, _subtitleText, _skipHint, _help, _documentText;
     float _toastLeft, _subtitleLeft;
     float _statsTimer;
@@ -486,6 +486,7 @@ public partial class Hud : MonoBehaviour
         _sensitivityValue = Stepper(card, "Mouse sensitivity", () => GameSettings.MouseSensitivity -= 0.1f, () => GameSettings.MouseSensitivity += 0.1f);
         _fovValue = Stepper(card, "Field of view", () => GameSettings.HorizontalFov -= 5f, () => GameSettings.HorizontalFov += 5f);
         _bobValue = Stepper(card, "Camera bob", () => GameSettings.CameraBob -= 0.25f, () => GameSettings.CameraBob += 0.25f);
+        _gadgetKeyValue = Stepper(card, "Gadget key", () => GameSettings.CycleGadgetKey(-1), () => GameSettings.CycleGadgetKey(1));
         // For testers: the game's log (and the save) live here; send Player.log with any bug report.
         MenuButton(card, "Report a problem (open the log folder)", false, TesterSupport.OpenLogFolder);
         MenuButton(card, $"Quit      <size=12><color=#FFFFFF66>v{Application.version}</color></size>", false, () => QuitRequested?.Invoke());
@@ -502,6 +503,7 @@ public partial class Hud : MonoBehaviour
         _sensitivityValue.text = GameSettings.MouseSensitivity.ToString("0.0");
         _fovValue.text = $"{GameSettings.HorizontalFov:0}°";
         _bobValue.text = GameSettings.CameraBob <= 0f ? "Off" : $"{GameSettings.CameraBob * 100f:0}%";
+        _gadgetKeyValue.text = GameSettings.GadgetKeyName;
     }
 
     // Small building blocks (shared with the computer screen) ---------------------------------

@@ -70,11 +70,16 @@ public class FrontDoor : Interactable
     public override string Prompt(IInteractionActor actor) =>
         Stage == OpeningStage.Hired ? $"Leave for your shift ({Jobs.Title(CrewState.Current.Job)})" : "Answer the door";
 
-    public override InteractionResult CanUse(IInteractionActor actor) =>
-        Stage == OpeningStage.Knocking || Stage == OpeningStage.Hired ? InteractionResult.Ok : InteractionResult.NotNow;
+    public override InteractionResult CanUse(IInteractionActor actor)
+    {
+        if (Stage == OpeningStage.Hired && WorkshopLedger.RentOverdue(CrewState.Current))
+            return InteractionResult.NotNow;
+        return Stage == OpeningStage.Knocking || Stage == OpeningStage.Hired ? InteractionResult.Ok : InteractionResult.NotNow;
+    }
 
     public override string BlockedReason(IInteractionActor actor) => Stage switch
     {
+        OpeningStage.Hired => "The rent is overdue. Pay it on the computer first (FlatPay).",
         OpeningStage.FindJob => "No job, no reason to go out. Try the computer.",
         OpeningStage.LandlordLeaving => "Give him a second to leave.",
         _ => "",

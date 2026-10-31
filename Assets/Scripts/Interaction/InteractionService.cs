@@ -58,6 +58,20 @@ public sealed class InteractionService
 
     public void RegisterActor(IInteractionActor actor) => _actors[actor.ActorId] = actor;
     public void RegisterProp(PickupProp prop) => _props[prop.EntityId] = prop;
+
+    /// A prop that stops existing (a part used up in a build). Whoever held it has empty hands.
+    public void UnregisterProp(string id)
+    {
+        if (!_props.TryGetValue(id, out var prop))
+            return;
+        foreach (var actor in _actors.Values)
+            if (actor.HeldPropId == id)
+                actor.HeldPropId = "";
+        var socket = GetSocket(prop.SocketId);
+        if (socket != null && socket.OccupantId == id)
+            socket.OccupantId = "";
+        _props.Remove(id);
+    }
     public void RegisterSocket(PlacementSocket socket) => _sockets[socket.EntityId] = socket;
     public void RegisterInteractable(Interactable thing) => _interactables[thing.EntityId] = thing;
 
@@ -144,6 +158,8 @@ public sealed class InteractionService
             return InteractionResult.StaleRevision;
         // A tier with another on top of it stays put until the top one is lifted off.
         var under = GetSocket(prop.SocketId);
+        if (under != null && under.Sealed)
+            return InteractionResult.SocketLocked;
         if (under != null)
             foreach (var other in _sockets.Values)
                 if (other.StackOn == under && !string.IsNullOrEmpty(other.OccupantId))

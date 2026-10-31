@@ -38,6 +38,20 @@ public class CrewState
     /// Older saves have none: everyone speaks English only.
     public List<LanguageProfile> languageProfiles = new();
 
+    // The workshop (see WorkshopLedger): shared parts, paid orders, finished
+    // gadgets and the build on the bench. Older saves have none of it.
+    public List<PartStack> parts = new();
+    public List<PartOrder> orders = new();
+    public List<GadgetInstance> gadgets = new();
+    public BuildState build = new();
+    public bool starterKitGiven;
+    /// The shop's daily stock: what was bought on stockDay.
+    public int stockDay;
+    public List<PartStack> boughtToday = new();
+    /// Rent weeks paid, and late-fee extensions asked for this week.
+    public int rentPaid;
+    public int extensionsThisWeek;
+
     static CrewState _current;
 
     public static CrewState Current
@@ -51,6 +65,8 @@ public class CrewState
     }
 
     static string SavePath => Path.Combine(Application.persistentDataPath, "crew.json");
+    static string BackupPath => SavePath + ".bak";
+    static string TempPath => SavePath + ".tmp";
 
     public bool HasClaim(string id) => claims.Contains(id);
     public bool Truthful => claims.Count == 0 && languageProfiles.TrueForAll(p => p.languages.Count == 0);
@@ -86,14 +102,30 @@ public class CrewState
         crew.claims ??= new List<string>();
         crew.languageProfiles ??= new List<LanguageProfile>();
         crew.job ??= "";
+        crew.parts ??= new List<PartStack>();
+        crew.orders ??= new List<PartOrder>();
+        crew.gadgets ??= new List<GadgetInstance>();
+        crew.build ??= new BuildState();
+        crew.build.reserved ??= new List<string>();
+        crew.build.placed ??= new List<string>();
+        crew.build.editor = "";
+        crew.boughtToday ??= new List<PartStack>();
+        foreach (var order in crew.orders)
+            order.lines ??= new List<PartStack>();
         return crew;
     }
 
     public void Save()
     {
+        // Write a new file and swap it in, keeping the last good save as a backup:
+        // a crash mid-write leaves the old save, never half of a new one.
         try
         {
-            File.WriteAllText(SavePath, JsonUtility.ToJson(this, true));
+            File.WriteAllText(TempPath, JsonUtility.ToJson(this, true));
+            if (File.Exists(SavePath))
+                File.Replace(TempPath, SavePath, BackupPath);
+            else
+                File.Move(TempPath, SavePath);
         }
         catch (Exception e)
         {
@@ -103,14 +135,17 @@ public class CrewState
 
     static CrewState Load()
     {
-        try
+        foreach (var path in new[] { SavePath, BackupPath })
         {
-            if (File.Exists(SavePath))
-                return FromJson(File.ReadAllText(SavePath));
-        }
-        catch (Exception e)
-        {
-            Debug.LogWarning($"Could not read the crew state, starting fresh: {e.Message}");
+            try
+            {
+                if (File.Exists(path))
+                    return FromJson(File.ReadAllText(path));
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"Could not read {Path.GetFileName(path)}: {e.Message}");
+            }
         }
         return new CrewState();
     }

@@ -103,6 +103,8 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
     Vector3 _slipBoost;
     bool _warnedWobble;
 
+    /// What E is being held on right now (a screw being driven), or null.
+    public Interactable HoldTarget => _holdThing;
     /// 0..1 while holding E on something that takes time (for the HUD and captures).
     public float HoldProgress => _holdThing != null || _holdRepair != null ? _holdProgress : 0f;
 
@@ -363,8 +365,9 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
         _holdProgress = Mathf.Min(1f, _holdProgress + dt / needed);
         if (_holdThing is Spill spill)
             spill.ShowProgress(_holdProgress);
-        // Scrubbing: the tool works back and forth.
-        HoldPoint.localPosition += new Vector3(Mathf.Sin(Time.time * 18f) * 0.04f, 0f, Mathf.Cos(Time.time * 18f) * 0.02f);
+        // Scrubbing: the tool works back and forth (a tool on a point twists there instead).
+        if (_holdThing == null || _holdThing.WorkPoint == null)
+            HoldPoint.localPosition += new Vector3(Mathf.Sin(Time.time * 18f) * 0.04f, 0f, Mathf.Cos(Time.time * 18f) * 0.02f);
         if (_holdProgress >= 1f)
         {
             if (_holdThing != null)
@@ -673,6 +676,16 @@ public class PlayerActor : MonoBehaviour, IInteractionActor
     {
         var held = HeldProp;
         Vector3 wanted = HoldOffsetFor(held != null ? held.Category : PropCategory.Small);
+        // Working with a tool on a point (a screw): the tool's end goes there and twists.
+        if (held != null && _holdThing != null && _holdThing.WorkPoint is Vector3 work)
+        {
+            Vector3 at = Camera.transform.InverseTransformPoint(work);
+            at = Vector3.ClampMagnitude(at, 0.75f);
+            HoldPoint.localPosition = Vector3.Lerp(HoldPoint.localPosition, at, 1f - Mathf.Exp(-14f * dt));
+            HoldPoint.localRotation = Quaternion.Euler(0f, Mathf.Sin(Time.time * 16f) * 40f, 0f);
+            return;
+        }
+        HoldPoint.localRotation = Quaternion.identity;
         if (held != null && held.Category == PropCategory.Furniture)
         {
             // Dragged at the feet in front of you, level, stopping short of walls.

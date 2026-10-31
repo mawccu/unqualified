@@ -25,6 +25,12 @@ public class PlacementSocket : MonoBehaviour
     [SerializeField] float alignTolerance;
     [Tooltip("Sits on top of whatever occupies this socket (cake tiers).")]
     [SerializeField] PlacementSocket stackOn;
+    [Tooltip("Size of the aim box; zero means the default for the pad radius. Small spots side by side (a board's ports) need their own.")]
+    [SerializeField] Vector3 triggerSize;
+    [SerializeField] Vector3 triggerCentre;
+
+    /// While true the occupant cannot be lifted out (a lid closed over it, a part screwed down on it).
+    public bool Sealed { get; set; }
 
     public float AlignTolerance => alignTolerance;
     public PlacementSocket StackOn => stackOn;
@@ -53,6 +59,12 @@ public class PlacementSocket : MonoBehaviour
     GameObject _pad;
     GameObject _ghost;
     PickupProp _ghostSource;
+
+    public void ConfigureTrigger(Vector3 size, Vector3 centre)
+    {
+        triggerSize = size;
+        triggerCentre = centre;
+    }
 
     public void ConfigureAlignment(float tolerance, PlacementSocket below)
     {
@@ -141,8 +153,8 @@ public class PlacementSocket : MonoBehaviour
         _trigger = gameObject.AddComponent<BoxCollider>();
         _trigger.isTrigger = true;
         float r = Mathf.Max(padRadius, 0.2f);
-        _trigger.size = new Vector3(r * 2f, 0.4f, r * 2f);
-        _trigger.center = new Vector3(0f, 0.2f, 0f);
+        _trigger.size = triggerSize != Vector3.zero ? triggerSize : new Vector3(r * 2f, 0.4f, r * 2f);
+        _trigger.center = triggerSize != Vector3.zero ? triggerCentre : new Vector3(0f, 0.2f, 0f);
 
         // A layer that waits for the one below shows only the ghost when aimed
         // at, not a pad floating in mid-air.
@@ -163,6 +175,7 @@ public class PlacementSocket : MonoBehaviour
     }
 
     public bool Accepts(PickupProp prop) => prop.Kind == acceptsKind;
+    public string AcceptsKind => acceptsKind;
 
     /// Show or hide the ghost. prop is the one in the player's hand.
     public void SetPreview(bool on, PickupProp prop = null)

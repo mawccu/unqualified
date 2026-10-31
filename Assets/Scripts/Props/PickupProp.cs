@@ -50,6 +50,12 @@ public class PickupProp : MonoBehaviour
     public Condition State { get; private set; } = Condition.Fine;
     /// 0 calm to 1 slipping out of the hands (wide things only, while carried).
     public float Wobble { get; private set; }
+    /// 0..1, set every frame by a stabiliser clipped under it (the SteadyHand): damps the
+    /// wobble, the lean and the rocking. It eases in and out; it never makes the thing fall.
+    public float Stabilizer { get; set; }
+    /// How hard a stabiliser is working right now (0 idle to 1 flat out), for its hum and drain.
+    public float Correction { get; private set; }
+    float _stabilized;
     /// How well it was lined up when placed on a spot (1 dead centre, 0 at the edge of the tolerance).
     public float PlacementQuality { get; set; } = 1f;
     /// Raised once per change of State, with the new state.
@@ -120,7 +126,7 @@ public class PickupProp : MonoBehaviour
     public void AddWobble(float amount)
     {
         if (category == PropCategory.Wide && _holdTarget != null)
-            Wobble = Mathf.Clamp01(Wobble + amount);
+            Wobble = Mathf.Clamp01(Wobble + amount * (1f - 0.5f * _stabilized));
     }
 
     /// Changes how it looks (authority). Never improves past Fine; repairs go Smeared -> Fine.
@@ -214,7 +220,8 @@ public class PickupProp : MonoBehaviour
         Vector3 seen = (target - _lastHoldPosition) / dt;
         _lastHoldPosition = target;
         Vector3 local = Quaternion.Inverse(Quaternion.Euler(0f, yaw, 0f)) * seen;
-        float sway = category == PropCategory.Wide ? 1.4f : 1f;
+        _stabilized = Mathf.MoveTowards(_stabilized, Mathf.Clamp01(Stabilizer), dt);
+        float sway = (category == PropCategory.Wide ? 1.4f : 1f) * (1f - 0.55f * _stabilized);
         if (category == PropCategory.Wide)
             UpdateWobble(seen, yaw, dt);
         // Moving forward leans the top back; moving sideways leans it the other way.
@@ -242,7 +249,8 @@ public class PickupProp : MonoBehaviour
         {
             // A visible rocking that grows with the wobble.
             float t = Time.time;
-            rotation *= Quaternion.Euler(Mathf.Sin(t * 9f) * Wobble * 8f, 0f, Mathf.Cos(t * 7.3f) * Wobble * 8f);
+            float rock = Wobble * 8f * (1f - 0.5f * _stabilized);
+            rotation *= Quaternion.Euler(Mathf.Sin(t * 9f) * rock, 0f, Mathf.Cos(t * 7.3f) * rock);
         }
         Present(new Pose(target, rotation), dt);
     }
@@ -259,8 +267,13 @@ public class PickupProp : MonoBehaviour
         _lastYawSeen = yaw;
         float speed = new Vector2(_smoothedHoldVelocity.x, _smoothedHoldVelocity.z).magnitude;
         // Walking pace (4 m/s) is safe; running with it is not.
-        float target = Mathf.Clamp01(accel.magnitude / 16f + Mathf.Max(0f, yawRate - 90f) / 500f + Mathf.Max(0f, speed - 4.1f) / 0.7f);
-        Wobble = target > Wobble ? Mathf.MoveTowards(Wobble, target, dt * 0.9f) : Mathf.MoveTowards(Wobble, target, dt * 0.5f);
+        float raw = Mathf.Clamp01(accel.magnitude / 16f + Mathf.Max(0f, yawRate - 90f) / 500f + Mathf.Max(0f, speed - 4.1f) / 0.7f);
+        // A stabiliser takes the edge off what the carrier does and settles it sooner;
+        // what is left (running, slamming into turns) still builds up.
+        float target = raw * (1f - 0.6f * _stabilized);
+        Correction = Mathf.Clamp01((raw - target) * 2.5f + (Wobble > 0.05f ? _stabilized * Wobble : 0f));
+        Wobble = target > Wobble ? Mathf.MoveTowards(Wobble, target, dt * 0.9f * (1f - 0.4f * _stabilized))
+            : Mathf.MoveTowards(Wobble, target, dt * (0.5f + 1.2f * _stabilized));
     }
 
     /// The floor height under a point (anything solid below it in the world layer).
@@ -306,6 +319,9 @@ public class PickupProp : MonoBehaviour
 
     public void BeginHold(Transform target, string holder)
     {
+        Stabilizer = 0f;
+        _stabilized = 0f;
+        Correction = 0f;
         _npcPose = null;
         _placing = false;
         _holdTarget = target;

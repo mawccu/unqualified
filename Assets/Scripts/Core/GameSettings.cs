@@ -80,5 +80,30 @@ public static class GameSettings
         }
     }
 
+    /// The one key every gadget uses (tap it at work). Remappable among keys nothing else uses.
+    public static readonly string[] GadgetKeys = { "g", "f", "r", "t", "v", "b", "x", "z" };
+
+    public static string GadgetKey
+    {
+        get
+        {
+            string key = PlayerPrefs.GetString("gadget_key", "g");
+            return Array.IndexOf(GadgetKeys, key) >= 0 ? key : "g";
+        }
+        set
+        {
+            PlayerPrefs.SetString("gadget_key", Array.IndexOf(GadgetKeys, value) >= 0 ? value : "g");
+            Changed?.Invoke();
+        }
+    }
+
+    public static string GadgetKeyName => GadgetKey.ToUpperInvariant();
+
+    public static void CycleGadgetKey(int step)
+    {
+        int i = Array.IndexOf(GadgetKeys, GadgetKey);
+        GadgetKey = GadgetKeys[(i + step + GadgetKeys.Length) % GadgetKeys.Length];
+    }
+
     public static void Save() => PlayerPrefs.Save();
 }

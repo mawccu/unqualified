@@ -9,12 +9,13 @@ using UnityEngine.UIElements;
 
 /// <summary>
 /// Builds Assets/Scenes/Apartment.unity: the crew's awful flat (8 x 6 m), the
-/// corridor outside the front door, the opening's characters and objects, light,
+/// corridor outside the front door, the opening's characters and objects, the
+/// workshop alcove off the east wall (ApartmentSceneBuilder.Workshop.cs), light,
 /// and the session. Unity coordinates (north +Z). The front door is in the south
 /// wall; the desk is on the east wall, in view from the door and the couch.
 /// Run: return ApartmentSceneBuilder.Build();
 /// </summary>
-public static class ApartmentSceneBuilder
+public static partial class ApartmentSceneBuilder
 {
     const string ScenePath = "Assets/Scenes/Apartment.unity";
     const string Props = "Assets/Art/Apartment/{0}.fbx";
@@ -25,6 +26,11 @@ public static class ApartmentSceneBuilder
 
     static Transform _root;
     static readonly StringBuilder Report = new();
+    // Made by Story, used by the workshop.
+    static FrontDoor _door;
+    static AudioSource _doorAudio;
+    static GameObject _hudGo;
+    static Hud _hud;
 
     public static string Build()
     {
@@ -38,6 +44,7 @@ public static class ApartmentSceneBuilder
         Furniture();
         var camera = PreviewCamera();
         Story(camera);
+        Workshop();
         Lighting();
         PostProcessing();
 
@@ -167,7 +174,10 @@ public static class ApartmentSceneBuilder
 
         float h = Wall * 0.5f;
         Block("WallWest", new Vector3(-4f - h, 0f, -3f - h), new Vector3(-4f + h, Height, 3f + h), wall, shell);
-        Block("WallEast", new Vector3(4f - h, 0f, -3f - h), new Vector3(4f + h, Height, 3f + h), wall, shell);
+        // The east wall has an opening into the workshop, just south of the desk.
+        Block("WallEastNorth", new Vector3(4f - h, 0f, OpeningNorth), new Vector3(4f + h, Height, 3f + h), wall, shell);
+        Block("WallEastSouth", new Vector3(4f - h, 0f, -3f - h), new Vector3(4f + h, Height, OpeningSouth), wall, shell);
+        Block("WallEastHeader", new Vector3(4f - h, 2.16f, OpeningSouth), new Vector3(4f + h, Height, OpeningNorth), wall, shell);
         Block("WallNorth", new Vector3(-4f, 0f, 3f - h), new Vector3(4f, Height, 3f + h), wall, shell);
         // South wall around the front door opening.
         Block("WallSouthA", new Vector3(-4f, 0f, -3f - h), new Vector3(DoorX - 0.54f, Height, -3f + h), wall, shell);
@@ -178,7 +188,7 @@ public static class ApartmentSceneBuilder
         // Skirting, a damp patch over the bucket.
         Block("SkirtingN", new Vector3(-3.92f, 0f, 2.9f), new Vector3(3.92f, 0.1f, 2.93f), trim, shell, false);
         Block("SkirtingW", new Vector3(-3.93f, 0f, -2.92f), new Vector3(-3.9f, 0.1f, 2.92f), trim, shell, false);
-        Block("SkirtingE", new Vector3(3.9f, 0f, -2.92f), new Vector3(3.93f, 0.1f, 2.92f), trim, shell, false);
+        Block("SkirtingE", new Vector3(3.9f, 0f, OpeningNorth), new Vector3(3.93f, 0.1f, 2.92f), trim, shell, false);
         var damp = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
         damp.name = "DampPatch";
         Object.DestroyImmediate(damp.GetComponent<Collider>());
@@ -222,8 +232,9 @@ public static class ApartmentSceneBuilder
         Place(P("kitchen_counter"), new Vector3(2.4f, 0f, 2.6f), 180f, f);
         Place(P("fridge"), new Vector3(3.55f, 0f, 2.58f), 180f, f);
         Place(P("microwave"), new Vector3(1.9f, 0.9f, 2.68f), 180f, f);
-        Place(P("trash_bag"), new Vector3(3.4f, 0f, -2.5f), 0f, f);
-        Place(P("trash_bag"), new Vector3(3.62f, 0f, -1.95f), 50f, f);
+        // Out of the way of the workshop opening.
+        Place(P("trash_bag"), new Vector3(-0.2f, 0f, -2.6f), 0f, f);
+        Place(P("trash_bag"), new Vector3(0.25f, 0f, -2.72f), 50f, f);
         Place(P("dead_plant"), new Vector3(-3.6f, 0f, -0.1f), 0f, f);
         Place(P("window"), new Vector3(-3.87f, 0.9f, 0.6f), 90f, f, false);
         var bulb = Place(P("bare_bulb"), new Vector3(0f, Height, 0f), 0f, f, false);
@@ -285,7 +296,9 @@ public static class ApartmentSceneBuilder
         var door = doorGo.AddComponent<FrontDoor>();
         door.SetEntityId("front_door");
         door.Configure(pivot);
+        _door = door;
         var audio = doorGo.AddComponent<AudioSource>();
+        _doorAudio = audio;
         audio.spatialBlend = 1f;
         audio.minDistance = 1.5f;
         audio.maxDistance = 20f;
@@ -365,6 +378,8 @@ public static class ApartmentSceneBuilder
         hudGo.transform.SetParent(story, false);
         hudGo.AddComponent<UIDocument>().panelSettings = GameplaySceneSetup.BuildPanelSettings();
         var hud = hudGo.AddComponent<Hud>();
+        _hudGo = hudGo;
+        _hud = hud;
         var screen = hudGo.AddComponent<ComputerScreen>();
         screen.Configure(hud);
         var desk = deskGo.AddComponent<ComputerDesk>();
@@ -457,6 +472,11 @@ public static class ApartmentSceneBuilder
         for (float x = -0.8f; x <= 6.8f; x += 1f)
             foreach (float y in new[] { 0.4f, 1.3f, 2.2f })
                 positions.Add(new Vector3(x, y, -4.1f));
+        // The workshop alcove.
+        for (float x = 4.5f; x <= 6.6f; x += 0.7f)
+            for (float z = -2.6f; z <= 0.3f; z += 0.7f)
+                foreach (float y in new[] { 0.4f, 1.0f, 1.6f, 2.3f })
+                    positions.Add(new Vector3(x, y, z));
         probes.AddComponent<LightProbeGroup>().probePositions = positions.ToArray();
 
         var reflection = new GameObject("RoomReflections");
@@ -467,6 +487,17 @@ public static class ApartmentSceneBuilder
         probe.size = new Vector3(8f, 2.6f, 6f);
         probe.boxProjection = true;
         probe.resolution = 128;
+        var workshopReflection = new GameObject("WorkshopReflections");
+        workshopReflection.transform.SetParent(_root, false);
+        workshopReflection.transform.position = new Vector3(5.5f, 1.3f, -1.2f);
+        var workshopProbe = workshopReflection.AddComponent<ReflectionProbe>();
+        workshopProbe.mode = ReflectionProbeMode.Baked;
+        workshopProbe.size = new Vector3(3f, 2.6f, 3.6f);
+        workshopProbe.boxProjection = true;
+        workshopProbe.resolution = 128;
+        // The workshop: a bare bulb and the task lamp over the mat.
+        Make("WorkshopBulb", LightType.Point, new Vector3(5.5f, Height - 0.45f, -1.2f), Quaternion.identity, new Color(1f, 0.82f, 0.6f), 3.2f, 5.5f);
+        Make("TaskLamp", LightType.Spot, new Vector3(6.68f, 1.12f, -0.67f), Quaternion.LookRotation(new Vector3(6.45f, 0.78f, -1.15f) - new Vector3(6.68f, 1.12f, -0.67f)), new Color(1f, 0.92f, 0.78f), 2.2f, 2.5f, 80f);
         Report.AppendLine($"lights: window, bulb, kitchen fill, 2 corridor tubes (baked); probes {positions.Count}");
     }
 

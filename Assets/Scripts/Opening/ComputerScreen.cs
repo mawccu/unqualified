@@ -8,9 +8,10 @@ using UnityEngine.UIElements;
 /// (a call center and a wedding crew), and the CV editor where the crew decides
 /// how much to lie. The draft lives here (not in the UI) so getting up does not
 /// lose it. Submitting stores claim ids and each player's language ids in
-/// CrewState, which the shift reads back.
+/// CrewState, which the shift reads back. Two more bookmarks: a parts shop for
+/// the workshop and the landlord's rent page (ComputerScreen.Shop.cs).
 /// </summary>
-public class ComputerScreen : MonoBehaviour
+public partial class ComputerScreen : MonoBehaviour
 {
     static readonly Color Page = new(0.97f, 0.97f, 0.95f);
     static readonly Color Chrome = new(0.82f, 0.82f, 0.80f);
@@ -53,8 +54,10 @@ public class ComputerScreen : MonoBehaviour
 
     [SerializeField] Hud hud;
 
-    VisualElement _window, _content;
+    VisualElement _window, _content, _header;
     ScrollView _pageScroll;
+    Label _url;
+    readonly System.Collections.Generic.Dictionary<string, Button> _bookmarks = new();
     ComputerDesk _desk;
     Label _preview, _meterTier, _meterPay, _meterEffects;
     VisualElement _meterFill, _meter;
@@ -81,7 +84,8 @@ public class ComputerScreen : MonoBehaviour
             Draft.Claims.UnionWith(crew.claims);
             Draft.Languages.UnionWith(crew.LanguagesOf(GameSession.OfflineActor));
         }
-        ShowListings();
+        // Back where you left off (the shop, the rent), or the listings.
+        ShowSite(_lastSite);
     }
 
     public void Close()
@@ -119,22 +123,38 @@ public class ComputerScreen : MonoBehaviour
         bar.style.flexShrink = 0;
         bar.style.backgroundColor = Chrome;
         Hud.Pad(bar, 8, 14);
-        var url = Hud.Text(bar, "http://www.jobjob.biz/listings?sort=desperate", 14, Faint);
-        url.style.flexGrow = 1;
-        url.style.backgroundColor = Color.white;
-        Hud.Pad(url, 4, 10);
-        Hud.Round(url, 4);
+        _url = Hud.Text(bar, "", 14, Faint);
+        _url.style.flexGrow = 1;
+        _url.style.backgroundColor = Color.white;
+        Hud.Pad(_url, 4, 10);
+        Hud.Round(_url, 4);
         var logoff = Button(bar, "Log off  (Esc)", false, () => _desk?.StandUp());
         logoff.style.marginLeft = 12;
 
-        // Site header.
-        var header = Row(browser);
-        header.style.flexShrink = 0;
-        header.style.backgroundColor = Brand;
-        Hud.Pad(header, 14, 26);
-        var logo = Hud.Text(header, "<b>JobJob</b><color=#FFD933>.biz</color>", 34, Color.white);
-        logo.style.flexGrow = 1;
-        Hud.Text(header, "Jobs for everyone*", 16, Yellow);
+        // Bookmarks: the three sites this computer is used for.
+        var marks = Row(browser);
+        marks.style.flexShrink = 0;
+        marks.style.backgroundColor = new Color(0.9f, 0.9f, 0.88f);
+        Hud.Pad(marks, 4, 14);
+        foreach (var (site, label) in new[] { (SiteJobs, "JobJob.biz"), (SiteShop, "Questionable Components"), (SiteRent, "FlatPay (rent)") })
+        {
+            string s = site;
+            var b = new Button(() => ShowSite(s)) { text = label };
+            b.name = "bookmark-" + site;
+            b.style.fontSize = 13;
+            b.style.marginLeft = 0;
+            b.style.marginRight = 6;
+            Hud.Round(b, 4);
+            Hud.Pad(b, 3, 10);
+            Hud.SetBorder(b, 1, new Color(0f, 0f, 0f, 0.15f));
+            marks.Add(b);
+            _bookmarks[site] = b;
+        }
+
+        // Site header (each site has its own).
+        _header = Row(browser);
+        _header.style.flexShrink = 0;
+        Hud.Pad(_header, 14, 26);
 
         _pageScroll = new ScrollView(ScrollViewMode.Vertical);
         _pageScroll.name = "computer-page-scroll";
@@ -167,6 +187,7 @@ public class ComputerScreen : MonoBehaviour
 
     void ShowListings()
     {
+        SetSite(SiteJobs);
         ClearPage();
         Hud.Text(_content, "Today's listings", 26, Body).style.unityFontStyleAndWeight = FontStyle.Bold;
         Hud.Text(_content, "5 jobs near you.  3 of them are not for you.", 14, Faint).style.marginBottom = 14;
@@ -207,6 +228,7 @@ public class ComputerScreen : MonoBehaviour
     void ShowCv(string job)
     {
         Draft.Job = job;
+        SetSite(SiteJobs);
         ClearPage();
         var top = Row(_content);
         var heading = Hud.Text(top, $"Build your CV: {Jobs.Title(job)}", 26, Body);

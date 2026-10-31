@@ -382,6 +382,13 @@ public class OpeningDirector : MonoBehaviour
     {
         var crew = CrewState.Current;
         var hud = session.Hud;
+        // At the bench mid-build, the card shows the build's steps instead.
+        if (WorkshopRoom.Instance != null && WorkshopRoom.Instance.WantsCard(session.Player))
+        {
+            WorkshopRoom.Instance.FillCard(hud);
+            hud.SetStatus(crew.MoneyLine());
+            return;
+        }
         string eyebrow = $"DAY {crew.day}   ·   FLAT 4B";
         switch (Stage)
         {
@@ -399,12 +406,33 @@ public class OpeningDirector : MonoBehaviour
             case OpeningStage.FindJob:
                 hud.SetCard(eyebrow, "Find something that pays", "The computer is on the desk.");
                 break;
+            case OpeningStage.Hired when WorkshopLedger.RentOverdue(crew):
+                hud.SetCard(eyebrow, "Pay the rent", $"${crew.rentDue} is overdue. Pay it on the computer (FlatPay) before you go anywhere.",
+                    crew.savings >= crew.rentDue ? $"You have ${crew.savings}." : $"You have ${crew.savings}: ${crew.rentDue - crew.savings} short. FlatPay can give you two more days, for a fee.");
+                break;
             case OpeningStage.Hired:
                 hud.SetCard(eyebrow, crew.shiftsCompleted == 0 ? "Get to your first shift" : "Get to work",
-                    $"{Jobs.Title(crew.Job)}, {Jobs.Place(crew.Job)}.", "Leave by the front door.", ClaimSummary(crew));
+                    $"{Jobs.Title(crew.Job)}, {Jobs.Place(crew.Job)}.", "Leave by the front door.", ClaimSummary(crew), WorkshopLine(crew));
                 break;
         }
         hud.SetStatus(crew.billReceived ? crew.MoneyLine() : "");
+    }
+
+    /// What the workshop has waiting: a parcel at the door, a build on the bench, the packed gadget.
+    static string WorkshopLine(CrewState crew)
+    {
+        var parts = new System.Collections.Generic.List<string>();
+        int parcels = crew.orders.FindAll(o => o.state == PartOrder.Delivered).Count;
+        if (parcels > 0)
+            parts.Add(parcels == 1 ? "A parcel is waiting by the door." : $"{parcels} parcels are waiting by the door.");
+        if (crew.build.Active)
+            parts.Add($"A {PartCatalog.Recipe(crew.build.recipe)?.Name} is half-built on the bench.");
+        var packed = WorkshopLedger.EquippedBy(crew, GameSession.OfflineActor);
+        if (packed != null)
+            parts.Add($"Packed: {PartCatalog.Recipe(packed.recipe).Name} ({packed.charge * 100f:0}%).");
+        else if (crew.gadgets.Count > 0)
+            parts.Add("Nothing packed: the charging rack is by the workbench.");
+        return string.Join(" ", parts);
     }
 
     static string ClaimSummary(CrewState crew)

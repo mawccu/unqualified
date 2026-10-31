@@ -11,11 +11,12 @@ using UnityEngine.UIElements;
 /// </summary>
 public partial class Hud
 {
-    VisualElement _phaseBox, _suspicionBox, _suspicionFill, _wobbleBox, _wobbleFill, _choices, _page, _payout;
-    Label _phaseLabel, _clockLabel, _suspicionLabel, _pageText, _payoutText;
+    VisualElement _phaseBox, _suspicionBox, _suspicionFill, _wobbleBox, _wobbleFill, _choices, _page, _payout, _gadgetBox, _gadgetFill;
+    Label _phaseLabel, _clockLabel, _suspicionLabel, _pageText, _payoutText, _gadgetLabel, _gadgetWarn;
     Action<int> _choiceCallback;
     float _choiceLeft;
     Action _payoutContinue, _payoutRetry;
+    Button _payoutRetryButton;
 
     void BuildShiftUi()
     {
@@ -77,6 +78,31 @@ public partial class Hud
         _root.Add(_wobbleBox);
         _wobbleBox.style.display = DisplayStyle.None;
 
+        // The packed gadget, bottom left above the status line: key, name, charge, state, and a warning when someone is close.
+        _gadgetBox = new VisualElement { pickingMode = PickingMode.Ignore };
+        _gadgetBox.style.position = Position.Absolute;
+        _gadgetBox.style.left = 28;
+        _gadgetBox.style.bottom = 74;
+        _gadgetBox.style.width = 300;
+        _gadgetBox.style.backgroundColor = Panel;
+        Pad(_gadgetBox, 8, 12);
+        Round(_gadgetBox, 10);
+        _gadgetLabel = Text(_gadgetBox, "", 14, Ink);
+        var gadgetTrack = new VisualElement();
+        gadgetTrack.style.height = 6;
+        gadgetTrack.style.marginTop = 5;
+        gadgetTrack.style.backgroundColor = new Color(1f, 1f, 1f, 0.12f);
+        Round(gadgetTrack, 3);
+        _gadgetFill = new VisualElement();
+        _gadgetFill.style.height = 6;
+        Round(_gadgetFill, 3);
+        gadgetTrack.Add(_gadgetFill);
+        _gadgetBox.Add(gadgetTrack);
+        _gadgetWarn = Text(_gadgetBox, "", 13, new Color(1f, 0.45f, 0.35f));
+        _gadgetWarn.style.marginTop = 4;
+        _root.Add(_gadgetBox);
+        _gadgetBox.style.display = DisplayStyle.None;
+
         // Reply choices, lower centre.
         _choices = new VisualElement { pickingMode = PickingMode.Ignore };
         _choices.style.position = Position.Absolute;
@@ -116,7 +142,7 @@ public partial class Hud
         buttons.style.marginTop = 18;
         card.Add(buttons);
         MenuButton(buttons, "Go home and rest", true, () => _payoutContinue?.Invoke());
-        MenuButton(buttons, "Try this shift again", false, () => _payoutRetry?.Invoke());
+        _payoutRetryButton = MenuButton(buttons, "Try this shift again", false, () => _payoutRetry?.Invoke());
         _root.Add(_payout);
         _payout.style.display = DisplayStyle.None;
     }
@@ -196,6 +222,25 @@ public partial class Hud
         };
     }
 
+    /// The gadget chip: null hides it. charge 0..1; warning is shown in red under the bar.
+    public void SetGadget(string richText, float charge, string warning)
+    {
+        Build();
+        if (richText == null)
+        {
+            _gadgetBox.style.display = DisplayStyle.None;
+            return;
+        }
+        _gadgetBox.style.display = DisplayStyle.Flex;
+        _gadgetLabel.text = richText;
+        _gadgetFill.style.width = Length.Percent(Mathf.Clamp01(charge) * 100f);
+        _gadgetFill.style.backgroundColor = charge > 0.5f ? Done : charge > 0.2f ? new Color(0.95f, 0.85f, 0.35f) : new Color(0.95f, 0.3f, 0.25f);
+        _gadgetWarn.text = warning ?? "";
+        _gadgetWarn.style.display = string.IsNullOrEmpty(warning) ? DisplayStyle.None : DisplayStyle.Flex;
+    }
+
+    public string GadgetText => _gadgetBox != null && _gadgetBox.style.display == DisplayStyle.Flex ? _gadgetLabel.text + " | " + _gadgetWarn.text : "";
+
     /// 0..1, or a negative number to hide it.
     public void SetWobble(float wobble)
     {
@@ -219,10 +264,11 @@ public partial class Hud
     }
 
     /// The end of the shift: the money and the reasons. Retry is offered when given.
-    public void ShowPayout(string richText, Action goHome, Action retry)
+    public void ShowPayout(string richText, Action goHome, Action retry, string retryLabel = "Try this shift again")
     {
         Build();
         _payoutText.text = richText;
+        _payoutRetryButton.text = retryLabel;
         _payoutContinue = goHome;
         _payoutRetry = retry;
         _payout.style.display = DisplayStyle.Flex;

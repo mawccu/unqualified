@@ -125,6 +125,7 @@ public class WeddingShift : MonoBehaviour
 
         Mind.BluffLine = Bluff;
         Mind.Suspicion.Strictness = CvLies.Scrutiny(Lies);
+        GadgetKit.Attach(session, Jobs.Wedding);
         Mind.Suspicion.Changed += level =>
         {
             if (level == Suspicion.Level.Exposed)
@@ -545,6 +546,9 @@ public class WeddingShift : MonoBehaviour
         int pay = Mathf.Max(0, Pay - deducted + earned);
         crew.savings += pay;
         crew.shiftsCompleted++;
+        if (WorkshopLedger.GiveStarterKit(crew))
+            _notes.Add("A text from your cousin Dev: \"Left a box of salvaged parts at your door. Build something with it.\"");
+        GadgetKit.Instance?.ShiftOver();
         crew.Save();
 
         lines.Add("<size=28><b>SHIFT OVER</b></size>");
@@ -559,7 +563,7 @@ public class WeddingShift : MonoBehaviour
         lines.Add($"\n<size=22><b>Paid: ${pay}</b></size>     savings ${crew.savings} of ${crew.rentDue} rent");
         foreach (var note in _notes)
             lines.Add($"<size=13><color=#FFFFFF99>{note}</color></size>");
-        session.Hud.ShowPayout(string.Join("\n", lines), GoHome, Retry);
+        session.Hud.ShowPayout(string.Join("\n", lines), GoHome, Retry, "Work tomorrow's shift too (skip home)");
         session.Player.WantsCursor = true;
         session.RefreshCursor();
     }
@@ -571,6 +575,7 @@ public class WeddingShift : MonoBehaviour
         _paid = true;
         Current = Phase.Exposed;
         StopAllCoroutines();
+        GadgetKit.Instance?.ShiftOver();
         var lines = new List<string> { "<size=28><b><color=#FF6B5B>EXPOSED</color></b></size>", "The coordinator has seen enough.\n", "<b>What she saw:</b>" };
         foreach (var i in Mind.Suspicion.Witnessed)
             lines.Add($"·  {i.What}");
@@ -590,9 +595,24 @@ public class WeddingShift : MonoBehaviour
         session.TravelTo(GameSession.ApartmentScene, 0.8f);
     }
 
+    /// Work again: after a paid shift that is tomorrow's shift (a new day, a day
+    /// closer to the rent), straight home instead if the rent is due. After being
+    /// exposed it is the same evening again, unpaid.
     void Retry()
     {
         session.Player.WantsCursor = false;
+        if (Current == Phase.Payout)
+        {
+            var crew = CrewState.Current;
+            crew.day++;
+            crew.daysLeft = Mathf.Max(0, crew.daysLeft - 1);
+            crew.Save();
+            if (WorkshopLedger.RentOverdue(crew))
+            {
+                session.TravelTo(GameSession.ApartmentScene, 0.8f);
+                return;
+            }
+        }
         session.TravelTo(GameSession.WeddingScene, 0.6f);
     }
 }
