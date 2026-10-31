@@ -147,7 +147,8 @@ public static partial class GameplaySceneSetup
         storageLight.range = 7f;
         storageLight.intensity = 2.5f;
         storageLight.color = new Color(1f, 0.92f, 0.78f);
-        storageLight.shadows = LightShadows.Soft;
+        // No shadows: a point light's shadows re-render the room six times a frame.
+        storageLight.shadows = LightShadows.None;
         storageLight.lightmapBakeType = LightmapBakeType.Realtime;
         var bulb = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(A("bare_bulb")), rooms);
         bulb.transform.position = new Vector3(3.5f, 3f, -10.5f);

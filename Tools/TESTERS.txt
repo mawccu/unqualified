@@ -1,0 +1,12 @@
+UNQUALIFIED - test build (Windows)
+
+1. Keep every file in this folder together and run UNQUALIFIED.exe.
+   If Windows says "Windows protected your PC": More info, then Run anyway.
+2. You start in the apartment. Use the computer to apply for a job:
+   every lie on your CV pays more and makes the shift harder.
+3. Esc opens the menu (settings, restart, quit).
+
+Found a bug or a crash?
+   Esc > "Report a problem" opens the log folder.
+   Send Player.log (or Player-prev.log if the game crashed) to the developer,
+   with a line about what you were doing.

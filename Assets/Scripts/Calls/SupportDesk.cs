@@ -97,8 +97,9 @@ public class SupportDesk : Interactable
         Vector3 head = cam != null ? cam.position : seat.position + Vector3.up * 1.15f;
         Vector3 forward = cam != null ? cam.forward : seat.forward;
         Vector3 right = cam != null ? cam.right : seat.right;
-        // Close enough to the ear to read as "on the phone", just in view at the left edge.
-        Vector3 at = head - right * 0.24f + forward * 0.2f - Vector3.up * 0.16f;
+        // At the ear, just past the left edge of the view: you see the hand lift
+        // the handset and put it back, not a hand parked over the screen.
+        Vector3 at = head - right * 0.2f + forward * 0.06f - Vector3.up * 0.04f;
         // Earpiece (-X of the handset) up by the ear, mouthpiece down toward the chin.
         return new Pose(at, Quaternion.LookRotation(forward, right) * Quaternion.Euler(0f, 0f, -70f));
     }

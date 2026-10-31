@@ -2,7 +2,8 @@
 
   python Tools/make_bill_texture.py Assets/Art/Apartment/bill_print.png
 
-The numbers match CrewState's starting values (rent 840, 7 days). The text is
+Only facts that stay true on paper (rent 840, due by day 7); the live countdown
+is on the HUD. The text is
 large enough to read when the bill is held up in first person.
 """
 import sys
@@ -31,7 +32,8 @@ d.rectangle([0, 0, W, 150], fill=red)
 d.text((56, 38), "FINAL NOTICE", font=font(76, True), fill=(250, 246, 236))
 d.text((60, 190), "FLAT 4B  ·  FROM YOUR LANDLORD", font=font(30, True), fill=grey)
 d.line([60, 240, W - 60, 240], fill=(200, 196, 186), width=3)
-rows = [("Rent owed", "$840"), ("Due in", "7 days"), ("Paid so far", "$0")]
+# Only what stays true on paper: the live countdown and savings are on the HUD.
+rows = [("Rent owed", "$840"), ("Due by", "Day 7"), ("Late fee", "Your stuff")]
 y = 290
 for label, value in rows:
     d.text((60, y), label, font=font(48), fill=ink)

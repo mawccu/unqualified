@@ -26,6 +26,8 @@ if [ "${2:-}" != "--no-bake" ]; then
     case "$s" in *completed*|*idle*) break;; esac; sleep 10
   done
   echo "bake: $s in $(( $(date +%s) - start ))s"
+  # The bake links new lighting data into the scene: save it, or builds stop to ask.
+  ucmd script eval_file --file Tools/Eval/save_scenes.cs >/dev/null
 fi
 
 mkdir -p Docs/Screens

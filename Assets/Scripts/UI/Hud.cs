@@ -486,7 +486,9 @@ public partial class Hud : MonoBehaviour
         _sensitivityValue = Stepper(card, "Mouse sensitivity", () => GameSettings.MouseSensitivity -= 0.1f, () => GameSettings.MouseSensitivity += 0.1f);
         _fovValue = Stepper(card, "Field of view", () => GameSettings.HorizontalFov -= 5f, () => GameSettings.HorizontalFov += 5f);
         _bobValue = Stepper(card, "Camera bob", () => GameSettings.CameraBob -= 0.25f, () => GameSettings.CameraBob += 0.25f);
-        MenuButton(card, "Quit", false, () => QuitRequested?.Invoke());
+        // For testers: the game's log (and the save) live here; send Player.log with any bug report.
+        MenuButton(card, "Report a problem (open the log folder)", false, TesterSupport.OpenLogFolder);
+        MenuButton(card, $"Quit      <size=12><color=#FFFFFF66>v{Application.version}</color></size>", false, () => QuitRequested?.Invoke());
         GameSettings.Changed += RefreshSettingValues;
         _menu.style.display = DisplayStyle.None;
     }

@@ -29,7 +29,13 @@ public class Suspicion : MonoBehaviour
     public enum Level { Calm, Watching, Questioning, Warning, Exposed }
 
     public const float WatchingAt = 25f, QuestioningAt = 50f, WarningAt = 75f, ExposedAt = 100f;
-    const float FadePerSecond = 1.2f;
+    /// Attention fades slowly, and only after a quiet spell with nothing new.
+    public const float FadePerSecond = 0.4f;
+    public const float QuietBeforeFade = 10f;
+
+    /// How strict this watcher is (the CV's lies set it): suspicion gained is
+    /// multiplied by it, fading is divided by it.
+    public float Strictness { get; set; } = 1f;
 
     public float Value { get; private set; }
     public Level State { get; private set; } = Level.Calm;
@@ -44,7 +50,7 @@ public class Suspicion : MonoBehaviour
     int _nextId;
     Func<Vector3, bool> _canSee;
     Action<Vector3> _investigate;
-    float _floor;
+    float _floor, _quiet;
 
     /// Wires her senses: canSee(point) and investigate(point).
     public void Bind(Func<Vector3, bool> canSee, Action<Vector3> investigate)
@@ -111,11 +117,12 @@ public class Suspicion : MonoBehaviour
                 Saw?.Invoke(incident);
             }
             if (incident.Witnessed && incident.Major)
-                floor += incident.Severity * 0.6f;
+                floor += incident.Severity * Strictness * 0.6f;
         }
         _floor = Mathf.Min(floor, WarningAt - 1f);
-        if (Value > _floor && State != Level.Exposed)
-            Value = Mathf.Max(_floor, Value - FadePerSecond * dt);
+        _quiet += dt;
+        if (Value > _floor && State != Level.Exposed && _quiet >= QuietBeforeFade)
+            Value = Mathf.Max(_floor, Value - FadePerSecond / Strictness * dt);
         UpdateState();
     }
 
@@ -123,6 +130,11 @@ public class Suspicion : MonoBehaviour
     {
         if (State == Level.Exposed)
             return;
+        if (amount > 0f)
+        {
+            amount *= Strictness;
+            _quiet = 0f;
+        }
         Value = Mathf.Clamp(Value + amount, 0f, ExposedAt);
         UpdateState();
     }

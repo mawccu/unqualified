@@ -61,10 +61,48 @@ public class ShiftRulesTests
         for (int i = 0; i < 100; i++) s.Tick(0.1f);
         Assert.Greater(s.Value, 11f, "witnessed major evidence holds a floor while it is there");
         there = false;
-        for (int i = 0; i < 200; i++) s.Tick(0.1f);
+        for (int i = 0; i < 800; i++) s.Tick(0.1f);
         Assert.IsTrue(s.Incidents[0].Resolved, "cleaned up");
         Assert.AreEqual(0f, s.Value, 0.01f, "and the attention fades away");
         Object.DestroyImmediate(s.gameObject);
+    }
+
+    [Test]
+    public void AStricterBossNoticesMoreAndForgetsSlower()
+    {
+        var easy = MakeSuspicion(_ => true, null);
+        var strict = MakeSuspicion(_ => true, null);
+        strict.Strictness = CvLies.Scrutiny(5);
+        easy.Raise("lie", "a lie", 10f);
+        strict.Raise("lie", "a lie", 10f);
+        Assert.AreEqual(10f, easy.Value, 0.01f);
+        Assert.AreEqual(16f, strict.Value, 0.01f, "five lies: 60% stricter");
+        for (int i = 0; i < 50; i++) { easy.Tick(0.1f); strict.Tick(0.1f); }
+        Assert.AreEqual(10f, easy.Value, 0.01f, "nothing fades during the quiet spell");
+        for (int i = 0; i < 100; i++) { easy.Tick(0.1f); strict.Tick(0.1f); }
+        Assert.Less(easy.Value, 10f, "then it fades");
+        Assert.Greater(16f - strict.Value, 0f);
+        Assert.Less(16f - strict.Value, 10f - easy.Value, "and the strict boss forgets more slowly");
+        Object.DestroyImmediate(easy.gameObject);
+        Object.DestroyImmediate(strict.gameObject);
+    }
+
+    [Test]
+    public void MoreLiesPayMoreAndMakeItHarder()
+    {
+        Assert.AreEqual(0, CvLies.Count(0, 0, 0, 0), "the truth");
+        Assert.AreEqual(7, CvLies.Count(2, 3, 2, 1), "senior title 2 + 15 years 2 + two skills + a language");
+        Assert.AreEqual(140, CvLies.Pay(140, 0));
+        Assert.Greater(CvLies.Pay(140, 3), CvLies.Pay(140, 1), "more lies, more pay");
+        Assert.Less(CvLies.TimeScale(3), CvLies.TimeScale(1), "and less time");
+        Assert.Greater(CvLies.Scrutiny(3), CvLies.Scrutiny(1), "and a stricter boss");
+        Assert.GreaterOrEqual(CvLies.TimeScale(50), 0.7f, "never impossible");
+        var crew = new CrewState { job = Jobs.CallCenter, cvTitle = CvLies.Titles[1], cvExperience = CvLies.Experience[2] };
+        crew.claims.Add(Claims.Technical);
+        crew.SetLanguages("peer_1", new[] { CallLanguage.Spanish });
+        Assert.AreEqual(4, CvLies.Count(crew, "peer_1"), "title, experience, technical, Spanish");
+        crew.job = Jobs.Wedding;
+        Assert.AreEqual(2, CvLies.Count(crew, "peer_1"), "at a wedding the call center claim and the language do not count");
     }
 
     [Test]

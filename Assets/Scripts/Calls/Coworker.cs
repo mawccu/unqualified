@@ -70,7 +70,8 @@ public class Coworker : MonoBehaviour
 
     void SitAtDesk()
     {
-        _body.SetPositionAndRotation(_desk.Seat.position - Vector3.up * 0.05f, _desk.Seat.rotation);
+        // Pulled in to the desk, so the typing hands reach the keyboard.
+        _body.SetPositionAndRotation(_desk.Seat.position + _desk.Seat.forward * 0.12f - Vector3.up * 0.05f, _desk.Seat.rotation);
         Avatar?.SetIdlePose(WorkerAvatar.SitType);
         Avatar?.SitOn(WorkerAvatar.DeskChairSeat);
     }

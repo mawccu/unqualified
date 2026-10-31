@@ -77,7 +77,11 @@ public class OpeningDirector : MonoBehaviour
         if (crew.billReceived)
         {
             // A repeat visit: the landlord has been and gone, the bill is on the desk.
+            // You come in by the front door, looking into the flat.
             landlord.gameObject.SetActive(false);
+            var inside = door.transform.position + Vector3.forward * 0.7f;
+            session.Player.Teleport(new Vector3(inside.x, 0.05f, inside.z));
+            session.Player.SetLook(-25f, 4f);
             session.Service.PlaceHeldOn(new BillPlacer(bill), billSpot);
             Stage = crew.hired ? OpeningStage.Hired : OpeningStage.FindJob;
             session.Hud.SetBlack(1f);
@@ -405,25 +409,28 @@ public class OpeningDirector : MonoBehaviour
 
     static string ClaimSummary(CrewState crew)
     {
-        if (crew.Truthful)
-            return "Your CV: no experience. Available immediately.";
+        int lies = CvLies.Count(crew, GameSession.OfflineActor);
+        int basePay = crew.Job == Jobs.CallCenter ? CrewState.CallCenterShiftPay : CrewState.WeddingShiftPay;
+        string grade = $"Pay grade: ${CvLies.Pay(basePay, lies)} a shift ({CvLies.Tier(lies).ToLowerInvariant()}, {lies} {(lies == 1 ? "lie" : "lies")}).";
+        if (lies == 0)
+            return "Your CV: no experience. Available immediately.\n" + grade;
         var parts = new System.Collections.Generic.List<string>();
         foreach (var (id, text, _) in Claims.For(crew.Job))
             if (crew.HasClaim(id))
                 parts.Add(text.ToLowerInvariant());
-        foreach (var language in crew.LanguagesOf(GameSession.OfflineActor))
-            parts.Add($"fluent in {CallLanguage.Name(language)}");
-        if (parts.Count == 0)
-            return "Your CV: some experience, no specialisms.";
-        return "Your CV says: " + string.Join(", ", parts) + ".";
+        if (crew.Job == Jobs.CallCenter)
+            foreach (var language in crew.LanguagesOf(GameSession.OfflineActor))
+                parts.Add($"fluent in {CallLanguage.Name(language)}");
+        string says = parts.Count == 0 ? "Your CV: plenty of experience, no specialisms." : "Your CV says: " + string.Join(", ", parts) + ".";
+        return says + "\n" + grade;
     }
 
     public static string BillText(CrewState crew) =>
         "<size=13><color=#888888>FLAT 4B   ·   FROM YOUR LANDLORD</color></size>\n" +
         "<size=26><b><color=#B3211F>FINAL NOTICE</color></b></size>\n\n" +
         $"Rent owed               <b>${crew.rentDue}</b>\n" +
-        $"Due in                     <b>{crew.daysLeft} days</b>\n" +
-        $"Paid so far              ${crew.savings}\n\n" +
+        $"Due by                     <b>Day {crew.day + crew.daysLeft - 1}</b>\n" +
+        "Late fee                  <b>Your stuff</b>\n\n" +
         "<size=13>The payment reference must not say \"entrepreneur\".\n" +
         "Pay or leave. Your choice. (It is not your choice.)</size>";
 

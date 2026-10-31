@@ -394,8 +394,11 @@ public class SupportConsole : MonoBehaviour
         var b = new Button(() => Send(intent, arg)) { text = label };
         b.name = "say-" + intent + (arg != "" ? "-" + arg : "");
         StyleButton(b, Color.white, Body);
+        // Compact, so every choice fits on the screen without scrolling.
+        b.style.fontSize = 13;
+        Hud.Pad(b, 4, 9);
         b.style.unityTextAlign = TextAnchor.MiddleLeft;
-        b.style.marginBottom = 4;
+        b.style.marginBottom = 3;
         _respond.Add(b);
         return b;
     }
@@ -596,8 +599,8 @@ public class SupportConsole : MonoBehaviour
         var label = Hud.Text(parent, text, 11, Faint);
         label.style.unityFontStyleAndWeight = FontStyle.Bold;
         label.style.letterSpacing = 2;
-        label.style.marginTop = 10;
-        label.style.marginBottom = 5;
+        label.style.marginTop = 8;
+        label.style.marginBottom = 4;
     }
 
     static Button Action(VisualElement parent, string text, Color colour, System.Action onClick)

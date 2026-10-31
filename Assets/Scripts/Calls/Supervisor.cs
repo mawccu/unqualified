@@ -61,7 +61,8 @@ public class Supervisor : MonoBehaviour
         if (route != null && route.Length > 0)
             Walker.Warp(route[0].position, route[0].rotation);
         Suspicion.Changed += level => Shift?.OnSuspicion(level);
-        _nextListen = 35f;
+        Suspicion.Strictness = CvLies.Scrutiny(Shift != null ? Shift.Lies : 0);
+        _nextListen = 35f / Suspicion.Strictness;
     }
 
     /// Meet the new agent by the door.
@@ -169,7 +170,8 @@ public class Supervisor : MonoBehaviour
         Walker.Performing = false;
         Avatar?.Perform(WorkerAvatar.Idle);
         bool keen = CrewState.Current.HasClaim(Claims.Service);
-        _nextListen = Shift.Clock + (keen ? 45f : 85f);
+        // Service claimants, and anyone with a suspiciously good CV, get listened to more.
+        _nextListen = Shift.Clock + (keen ? 45f : 85f) / Suspicion.Strictness;
         _busy = false;
         _arrived = false;
         NextStop();

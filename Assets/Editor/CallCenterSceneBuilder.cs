@@ -429,9 +429,10 @@ public static class CallCenterSceneBuilder
         var stops = new[]
         {
             Spot("Stop_at her desk", new Vector3(4.9f, 0f, 2.9f), 0f, group),
-            Spot("Stop_watching the pod", new Vector3(0f, 0f, -2.3f), 0f, group),
+            // Off to the side of the pod, not in the aisle to your desk.
+            Spot("Stop_watching the pod", new Vector3(3.3f, 0f, -2.4f), -54f, group),
             Spot("Stop_at the printer", new Vector3(-5.4f, 0f, -1.1f), -90f, group),
-            Spot("Stop_watching the pod", new Vector3(0f, 0f, 2.3f), 180f, group),
+            Spot("Stop_watching the pod", new Vector3(-3.3f, 0f, 2.4f), 126f, group),
             Spot("Stop_checking the break area", new Vector3(4.0f, 0f, -2.8f), 180f, group),
         };
         var listen = Spot("ListenSpot", new Vector3(-0.7f, 0f, -1.95f), -30f, group);

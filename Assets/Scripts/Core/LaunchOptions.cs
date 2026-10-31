@@ -7,6 +7,8 @@ using UnityEngine;
 ///   -quit-after &lt;s&gt;   close the game after that many seconds
 ///   -call-check &lt;file&gt; in the call center: sit down, take an Arabic call alone,
 ///                       greet, and save a screenshot (checks the text shaping ships)
+///   -fps-log            write the average frame rate to the log every 5 seconds
+///                       (with -uncapped: vsync off, to see the real headroom)
 /// Nothing happens without them.
 /// </summary>
 public static class LaunchOptions
@@ -17,7 +19,8 @@ public static class LaunchOptions
         string travel = Arg("-travel");
         string quit = Arg("-quit-after");
         string shot = Arg("-call-check");
-        if (travel == null && quit == null)
+        bool fps = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-fps-log") >= 0;
+        if (travel == null && quit == null && !fps)
             return;
         var go = new GameObject("LaunchOptions");
         Object.DontDestroyOnLoad(go);
@@ -25,6 +28,8 @@ public static class LaunchOptions
         runner.StartCoroutine(Run(travel, quit != null && float.TryParse(quit, out var s) ? s : -1f));
         if (shot != null)
             runner.StartCoroutine(CallCheck(shot));
+        if (fps)
+            runner.StartCoroutine(FpsLog());
     }
 
     static IEnumerator Run(string travel, float quitAfter)
@@ -42,6 +47,31 @@ public static class LaunchOptions
                 yield return null;
             Debug.Log("[LaunchOptions] quitting");
             Application.Quit();
+        }
+    }
+
+    static IEnumerator FpsLog()
+    {
+        bool uncapped = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-uncapped") >= 0;
+        while (true)
+        {
+            if (uncapped)
+            {
+                QualitySettings.vSyncCount = 0;
+                Application.targetFrameRate = -1;
+            }
+            int frames = 0;
+            float start = Time.realtimeSinceStartup, worst = 0f, last = start;
+            while (Time.realtimeSinceStartup - start < 5f)
+            {
+                yield return null;
+                frames++;
+                float now = Time.realtimeSinceStartup;
+                worst = Mathf.Max(worst, now - last);
+                last = now;
+            }
+            float seconds = Time.realtimeSinceStartup - start;
+            Debug.Log($"[fps] {UnityEngine.SceneManagement.SceneManager.GetActiveScene().name}: {frames / seconds:0} average, worst frame {worst * 1000f:0} ms");
         }
     }
 

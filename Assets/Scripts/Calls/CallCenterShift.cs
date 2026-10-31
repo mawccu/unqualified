@@ -45,6 +45,9 @@ public class CallCenterShift : MonoBehaviour
     public Supervisor Boss => supervisor;
     public IReadOnlyList<SupportDesk> Desks => desks;
     public IReadOnlyList<CallCase> Finished => _finished;
+    /// The CV's lies: they set the pay grade and the heat (see CvLies).
+    public int Lies { get; private set; }
+    int Pay => CvLies.Pay(CrewState.CallCenterShiftPay, Lies);
     /// Something about a call changed (consoles redraw).
     public event Action<CallCase> Changed;
 
@@ -71,6 +74,8 @@ public class CallCenterShift : MonoBehaviour
         Instance = this;
         Router = new CallRouter();
         var crew = CrewState.Current;
+        Lies = CvLies.Count(crew, PlayerId);
+        Router.Impatience = CvLies.Impatience(Lies);
         // The local player first; the coworkers are simulated (each claimed only English).
         var you = Router.AddWorker(PlayerId, string.IsNullOrEmpty(crew.cvName) ? "You" : crew.cvName,
             crew.LanguagesOf(PlayerId), crew.HasClaim(Claims.Technical), false);
@@ -117,7 +122,9 @@ public class CallCenterShift : MonoBehaviour
     {
         // Every language turns up; whether it reaches you depends on your CV.
         // Some callers skip the language menu, so a colleague hears them first.
-        void Add(float at, string id, string language, bool known = true, bool rush = false) => _schedule.Add((at, id, language, known, rush));
+        // A bolder CV gets a busier evening: the same callers, closer together.
+        float pace = CvLies.TimeScale(Lies);
+        void Add(float at, string id, string language, bool known = true, bool rush = false) => _schedule.Add((at * pace, id, language, known, rush));
         Add(4, "delivery_kettle", CallLanguage.English);
         Add(26, "refund_toaster", CallLanguage.English);
         Add(44, "setup_plug", CallLanguage.Spanish, known: false);
@@ -164,6 +171,8 @@ public class CallCenterShift : MonoBehaviour
             yield return Say("Supervisor", "And as our technical expert, you'll get the tricky ones.", 3f);
         if (crew.HasClaim(Claims.Service))
             yield return Say("Supervisor", "Award-winning service, it says. I'll be listening in to learn from you.", 3.4f);
+        if (Lies >= 5)
+            yield return Say("Supervisor", "Quite a CV. We hired you at a senior grade, so I'll expect senior work.", 3.4f);
         yield return Say("Supervisor", "Answer, find the order, fix it, close it. Don't promise what the system can't do.", 3.6f);
         supervisor.ResumePatrol();
         Begin();
@@ -507,7 +516,7 @@ public class CallCenterShift : MonoBehaviour
 
         int deducted = Mathf.Min(MaxDeductions, deductions.Sum(d => d.Item2));
         int earned = bonuses.Sum(b => b.Item2);
-        int pay = Mathf.Max(0, CrewState.CallCenterShiftPay - deducted + earned);
+        int pay = Mathf.Max(0, Pay - deducted + earned);
         crew.savings += pay;
         crew.shiftsCompleted++;
         crew.Save();
@@ -516,7 +525,7 @@ public class CallCenterShift : MonoBehaviour
         {
             "<size=28><b>SHIFT OVER</b></size>",
             $"<color=#FFFFFFAA>Brightline Home Support, day {crew.day}</color>\n",
-            $"Base pay                                  <b>${CrewState.CallCenterShiftPay}</b>",
+            $"Base pay ({CvLies.Tier(Lies).ToLowerInvariant()} CV, {Lies} {(Lies == 1 ? "lie" : "lies")})          <b>${Pay}</b>" + (Lies > 0 ? $"   <color=#FFFFFF88>(honest pay ${CrewState.CallCenterShiftPay})</color>" : ""),
         };
         foreach (var (what, amount) in bonuses)
             lines.Add($"<color=#8CE073>+ ${amount}</color>   {what}");

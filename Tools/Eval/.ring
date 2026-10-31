@@ -1,1 +1,1 @@
-setup_plug en
+delivery_kettle es solo

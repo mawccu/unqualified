@@ -89,9 +89,15 @@ public class WeddingShift : MonoBehaviour
             ShiftEvents.Mind = null;
     }
 
+    /// The CV's lies: they set the pay grade and the heat (see CvLies).
+    public int Lies { get; private set; }
+    float PrepTime => PrepSeconds * CvLies.TimeScale(Lies);
+    int Pay => CvLies.Pay(BasePay, Lies);
+
     void Start()
     {
         var crew = CrewState.Current;
+        Lies = CvLies.Count(crew, GameSession.OfflineActor);
         _expertCake = crew.HasClaim(Claims.Cake);
         _expertSeating = crew.HasClaim(Claims.Seating);
         _expertAudio = crew.HasClaim(Claims.Audio);
@@ -118,6 +124,7 @@ public class WeddingShift : MonoBehaviour
                 prop.Damaged += OnCakeDamaged;
 
         Mind.BluffLine = Bluff;
+        Mind.Suspicion.Strictness = CvLies.Scrutiny(Lies);
         Mind.Suspicion.Changed += level =>
         {
             if (level == Suspicion.Level.Exposed)
@@ -125,7 +132,7 @@ public class WeddingShift : MonoBehaviour
         };
         session.Hud.SetHelp("WASD move    Mouse look    Space jump    Shift sprint    C crouch    E use / pick up / drag    Click place / use    Q drop    1 2 3 reply    Esc menu");
         if (coordinator != null && greetSpot != null)
-            coordinator.Greet(session.Player.transform, greetSpot, GreetingLines(crew), (line, seconds) => session.Hud.ShowSubtitle("Coordinator", line, seconds));
+            coordinator.Greet(session.Player.transform, greetSpot, GreetingLines(crew, Lies, PrepTime), (line, seconds) => session.Hud.ShowSubtitle("Coordinator", line, seconds));
         Refresh();
     }
 
@@ -150,7 +157,7 @@ public class WeddingShift : MonoBehaviour
     }
 
     /// The welcome, built from the CV. At least one line repeats a claim back.
-    public static List<(string pose, string line, float seconds)> GreetingLines(CrewState crew)
+    public static List<(string pose, string line, float seconds)> GreetingLines(CrewState crew, int lies, float prepSeconds)
     {
         var lines = new List<(string, string, float)>();
         bool cake = crew.HasClaim(Claims.Cake);
@@ -164,9 +171,12 @@ public class WeddingShift : MonoBehaviour
             lines.Add((WorkerAvatar.Point, "Audio technician. Wonderful. The sound desk, and don't miss my music cue.", 3.4f));
         if (crew.HasClaim(Claims.Pressure))
             lines.Add((WorkerAvatar.Talk, "\"Works well under pressure.\" We'll see about that.", 3f));
-        if (crew.Truthful)
+        if (lies == 0)
             lines.Add((WorkerAvatar.Point, "You're the temp. No experience, it says. Just... carry things. Carefully.", 3.6f));
-        lines.Add((WorkerAvatar.Talk, "Six minutes until the doors open. I'll be watching.", 3f));
+        else if (lies >= 5)
+            lines.Add((WorkerAvatar.Talk, "With a CV like yours, I'm expecting perfection. We're paying for it.", 3.4f));
+        int minutes = Mathf.RoundToInt(prepSeconds / 60f);
+        lines.Add((WorkerAvatar.Talk, $"{(minutes == 1 ? "One minute" : minutes + " minutes")} until the doors open. I'll be watching.", 3f));
         return lines;
     }
 
@@ -208,7 +218,7 @@ public class WeddingShift : MonoBehaviour
         {
             case Phase.Briefing:
                 if (!coordinator.Greeting && _phaseTime > 2f)
-                    Enter(Phase.Prep, PrepSeconds);
+                    Enter(Phase.Prep, PrepTime);
                 break;
             case Phase.Prep:
                 _phaseLeft -= dt;
@@ -532,14 +542,14 @@ public class WeddingShift : MonoBehaviour
 
         int deducted = Mathf.Min(MaxDeductions, deductions.Sum(d => d.Item2));
         int earned = bonuses.Sum(b => b.Item2);
-        int pay = Mathf.Max(0, BasePay - deducted + earned);
+        int pay = Mathf.Max(0, Pay - deducted + earned);
         crew.savings += pay;
         crew.shiftsCompleted++;
         crew.Save();
 
         lines.Add("<size=28><b>SHIFT OVER</b></size>");
         lines.Add($"<color=#FFFFFFAA>Wedding Crew, day {crew.day}</color>\n");
-        lines.Add($"Base pay                                  <b>${BasePay}</b>");
+        lines.Add($"Base pay ({CvLies.Tier(Lies).ToLowerInvariant()} CV, {Lies} {(Lies == 1 ? "lie" : "lies")})          <b>${Pay}</b>" + (Lies > 0 ? $"   <color=#FFFFFF88>(honest pay ${BasePay})</color>" : ""));
         foreach (var (what, amount) in bonuses)
             lines.Add($"<color=#8CE073>+ ${amount}</color>   {what}");
         foreach (var (what, amount) in deductions)

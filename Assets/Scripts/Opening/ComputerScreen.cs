@@ -20,8 +20,8 @@ public class ComputerScreen : MonoBehaviour
     static readonly Color Faint = new(0.45f, 0.45f, 0.48f);
     static readonly Color Alarm = new(0.75f, 0.15f, 0.12f);
 
-    static readonly string[] Titles = { "Between opportunities", "Customer Experience Professional", "Senior Hospitality Consultant" };
-    static readonly string[] Experience = { "None", "6 months (a friend's party)", "5 years", "15 years, at least" };
+    static string[] Titles => CvLies.Titles;
+    static string[] Experience => CvLies.Experience;
     const string LanguageConsequence = "Calls in this language may be assigned or transferred to you.";
 
     /// The draft, kept between visits to the desk.
@@ -35,7 +35,20 @@ public class ComputerScreen : MonoBehaviour
         public static readonly HashSet<string> Languages = new();
         public static string Job = Jobs.CallCenter;
         public static bool Loaded;
-        public static bool Truthful => Title == 0 && Experience == 0 && Claims.Count == 0 && Languages.Count == 0;
+        public static bool Truthful => Lies == 0;
+
+        /// The lies this draft tells, counted the way the shift will count them.
+        public static int Lies
+        {
+            get
+            {
+                int claims = 0;
+                foreach (var (id, _, _) in global::Claims.For(Job))
+                    if (Claims.Contains(id))
+                        claims++;
+                return CvLies.Count(Title, Experience, claims, Job == Jobs.CallCenter ? Languages.Count : 0);
+            }
+        }
     }
 
     [SerializeField] Hud hud;
@@ -43,7 +56,8 @@ public class ComputerScreen : MonoBehaviour
     VisualElement _window, _content;
     ScrollView _pageScroll;
     ComputerDesk _desk;
-    Label _preview;
+    Label _preview, _meterTier, _meterPay, _meterEffects;
+    VisualElement _meterFill, _meter;
 
     public bool IsOpen => _window != null && _window.style.display == DisplayStyle.Flex;
 
@@ -145,6 +159,7 @@ public class ComputerScreen : MonoBehaviour
     {
         _content.Clear();
         _preview = null;
+        _meter = null;
         _pageScroll.scrollOffset = Vector2.zero;
     }
 
@@ -157,13 +172,13 @@ public class ComputerScreen : MonoBehaviour
         Hud.Text(_content, "5 jobs near you.  3 of them are not for you.", 14, Faint).style.marginBottom = 14;
 
         var calls = Listing(_content, Jobs.Title(Jobs.CallCenter), $"{Jobs.Place(Jobs.CallCenter)}   ·   Evening shift", true);
-        Hud.Text(calls, $"Pay: <b>${CrewState.CallCenterShiftPay} per shift</b>, plus bonuses", 16, Body);
+        Hud.Text(calls, $"Pay: <b>from ${CrewState.CallCenterShiftPay} per shift</b>. The better your CV, the higher your grade.", 16, Body);
         Hud.Text(calls, "Duties: answer customer calls about deliveries, smart-home setup and refunds.", 16, Body);
         Hud.Text(calls, "<color=#BF2620><b>Requires: 2+ years in customer support. A second language is a big plus.</b></color>", 16, Body).style.marginTop = 4;
         ApplyRow(calls, Jobs.CallCenter);
 
         var wedding = Listing(_content, Jobs.Title(Jobs.Wedding), $"{Jobs.Place(Jobs.Wedding)}   ·   Tonight", true);
-        Hud.Text(wedding, $"Pay: <b>${CrewState.WeddingShiftPay} per shift</b>", 16, Body);
+        Hud.Text(wedding, $"Pay: <b>from ${CrewState.WeddingShiftPay} per shift</b>. Experienced staff earn more.", 16, Body);
         Hud.Text(wedding, "Duties: dessert display, guest seating, ceremony sound.", 16, Body);
         Hud.Text(wedding, "<color=#BF2620><b>Requires: 5+ years of professional event experience.</b></color>", 16, Body).style.marginTop = 4;
         ApplyRow(wedding, Jobs.Wedding);
@@ -234,15 +249,19 @@ public class ComputerScreen : MonoBehaviour
         foreach (var (id, text, consequence) in Claims.For(job))
             ClaimToggle(form, id, text, consequence);
 
-        // Languages are yours alone: teammates fill in their own.
-        Caption("Languages (yours, not the crew's)", form);
-        var english = new Button { text = "☑  English (native)" };
-        StyleChoice(english, true);
-        english.SetEnabled(false);
-        english.style.alignSelf = Align.FlexStart;
-        form.Add(english);
-        foreach (var language in CallLanguage.Claimable)
-            LanguageToggle(form, language);
+        // Languages are yours alone: teammates fill in their own. Only jobs that
+        // use them ask (a language nobody tests would be a free lie).
+        if (job == Jobs.CallCenter)
+        {
+            Caption("Languages (yours, not the crew's)", form);
+            var english = new Button { text = "☑  English (native)" };
+            StyleChoice(english, true);
+            english.SetEnabled(false);
+            english.style.alignSelf = Align.FlexStart;
+            form.Add(english);
+            foreach (var language in CallLanguage.Claimable)
+                LanguageToggle(form, language);
+        }
 
         var actions = Row(form);
         actions.style.marginTop = 16;
@@ -266,11 +285,52 @@ public class ComputerScreen : MonoBehaviour
         Hud.Text(sheet, "CURRICULUM VITAE", 12, Faint).style.letterSpacing = 3;
         _preview = Hud.Text(sheet, "", 16, Body);
         _preview.style.marginTop = 8;
+
+        // The trade, live: every lie raises the pay grade and the heat.
+        _meter = new VisualElement();
+        _meter.style.marginTop = 16;
+        _meter.style.backgroundColor = new Color(0.12f, 0.13f, 0.16f);
+        Hud.Round(_meter, 6);
+        Hud.Pad(_meter, 12, 16);
+        sheet.Add(_meter);
+        Hud.Text(_meter, "LIE METER", 11, new Color(1f, 1f, 1f, 0.55f)).style.letterSpacing = 3;
+        _meterTier = Hud.Text(_meter, "", 20, Color.white);
+        _meterTier.style.unityFontStyleAndWeight = FontStyle.Bold;
+        var track = new VisualElement();
+        track.style.height = 10;
+        track.style.marginTop = 6;
+        track.style.backgroundColor = new Color(1f, 1f, 1f, 0.12f);
+        Hud.Round(track, 5);
+        _meterFill = new VisualElement();
+        _meterFill.style.height = 10;
+        Hud.Round(_meterFill, 5);
+        track.Add(_meterFill);
+        _meter.Add(track);
+        _meterPay = Hud.Text(_meter, "", 16, Yellow);
+        _meterPay.style.marginTop = 8;
+        _meterEffects = Hud.Text(_meter, "", 13, new Color(1f, 1f, 1f, 0.8f));
+        _meterEffects.style.marginTop = 4;
         RefreshPreview();
+    }
+
+    void RefreshMeter()
+    {
+        if (_meter == null)
+            return;
+        int lies = Draft.Lies;
+        int basePay = Draft.Job == Jobs.CallCenter ? CrewState.CallCenterShiftPay : CrewState.WeddingShiftPay;
+        _meterTier.text = $"{CvLies.Tier(lies)}  <size=14><color=#FFFFFF99>({lies} {(lies == 1 ? "lie" : "lies")})</color></size>";
+        float fill = Mathf.Clamp01(lies / 9f);
+        _meterFill.style.width = Length.Percent(Mathf.Max(3f, fill * 100f));
+        _meterFill.style.backgroundColor = Color.Lerp(new Color(0.4f, 0.85f, 0.5f), new Color(0.95f, 0.25f, 0.2f), fill);
+        _meterPay.text = lies == 0 ? $"Pay: ${basePay} per shift"
+            : $"Pay: ${basePay}  →  <b>${CvLies.Pay(basePay, lies)}</b> per shift  (+{Mathf.RoundToInt(CvLies.PayPerLie * 100f)}% a lie)";
+        _meterEffects.text = string.Join("\n", CvLies.Effects(lies, Draft.Job).ConvertAll(e => "·  " + e));
     }
 
     void RefreshPreview()
     {
+        RefreshMeter();
         if (_preview == null)
             return;
         string name = string.IsNullOrWhiteSpace(Draft.Name) ? "Your Name" : Draft.Name;
@@ -291,11 +351,15 @@ public class ComputerScreen : MonoBehaviour
                         text += $"·  {claim}\n";
                 text += "\n";
             }
-            text += "<b>Languages</b>\nEnglish (native)";
-            foreach (var language in CallLanguage.Claimable)
-                if (Draft.Languages.Contains(language))
-                    text += $", {CallLanguage.Name(language)} (fluent)";
-            text += "\n\n<color=#BF2620>You will be expected to do all of this.</color>";
+            if (Draft.Job == Jobs.CallCenter)
+            {
+                text += "<b>Languages</b>\nEnglish (native)";
+                foreach (var language in CallLanguage.Claimable)
+                    if (Draft.Languages.Contains(language))
+                        text += $", {CallLanguage.Name(language)} (fluent)";
+                text += "\n\n";
+            }
+            text += "<color=#BF2620>You will be expected to do all of this.</color>";
         }
         _preview.text = text;
     }

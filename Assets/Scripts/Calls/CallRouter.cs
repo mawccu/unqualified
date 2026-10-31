@@ -49,6 +49,8 @@ public sealed class CallRouter
     int _nextCall;
 
     public float Now { get; private set; }
+    /// How fast patience drains, times this (a CV full of lies gets the tough customers).
+    public float Impatience { get; set; } = 1f;
     public IReadOnlyList<CallWorker> Workers => _workers;
     public IReadOnlyList<CallCase> Calls => _calls;
 
@@ -283,7 +285,7 @@ public sealed class CallRouter
                 CallState.OnHold => DrainHold,
                 _ => DrainWaiting,
             };
-            call.Patience = Math.Max(0f, call.Patience - drain * dt);
+            call.Patience = Math.Max(0f, call.Patience - drain * Impatience * dt);
             if (call.Patience <= 0f)
             {
                 if (call.State == CallState.Active || call.State == CallState.OnHold)
